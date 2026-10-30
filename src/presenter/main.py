@@ -34,7 +34,6 @@ async def _run() -> None:
         else None
     )
     app = PresenterApp(settings, engine, player, bridge, supervisor)
-    bridge.set_user_event_handler(app.on_user_event)
     await bridge.start()
     loop = asyncio.get_running_loop()
     stop = loop.create_future()

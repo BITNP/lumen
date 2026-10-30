@@ -11,9 +11,9 @@ Bridge protocol (host -> presentation process), one JSON object per frame:
   {"type": "ppt", "action": "show", "image": str(absolute png path),
                  "deck": str, "page": int, "total_pages": int}
   {"type": "ppt", "action": "hide"}
-Presentation process -> host:
-  {"type": "hello"}
-  {"type": "user_event", "kind": str, "detail": str}   -> forwarded as input
+Presentation process -> host: {"type": "hello"} and nothing else. The window
+is a pure display surface: it takes no user input and produces no input
+frames (ADR-0005); frames the bridge receives from it are ignored.
 
 If PRESENTER_GODOT_PATH is configured the bridge also supervises the Godot
 process: exit or crash restarts it with exponential backoff; while no client
@@ -27,7 +27,7 @@ import contextlib
 import json
 import logging
 from collections.abc import Callable
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 import websockets
 from websockets.asyncio.server import ServerConnection
@@ -51,21 +51,15 @@ class PresentationBridge:
         *,
         host: str = "127.0.0.1",
         port: int = 8790,
-        on_user_event: Callable[[str, str], Any] | None = None,
     ) -> None:
         self._host = host
         self._port = port
-        self._on_user_event = on_user_event
         self._clients: set[ServerConnection] = set()
         self._server: Any = None
 
     @property
     def available(self) -> bool:
         return bool(self._clients)
-
-    def set_user_event_handler(self, handler: Callable[[str, str], Any]) -> None:
-        """Wire the host-side sink for user events (set by PresenterApp)."""
-        self._on_user_event = handler
 
     async def start(self) -> None:
         self._server = await websockets.serve(
@@ -96,20 +90,8 @@ class PresentationBridge:
         self._clients.add(ws)
         LOGGER.info("presentation process connected")
         try:
-            async for raw in ws:
-                try:
-                    parsed: object = json.loads(raw)
-                except (json.JSONDecodeError, UnicodeError):
-                    continue
-                if not isinstance(parsed, dict):
-                    continue
-                frame = cast("dict[str, Any]", parsed)
-                if frame.get("type") == "user_event" and self._on_user_event is not None:
-                    kind = str(frame.get("kind", "unknown"))
-                    detail = str(frame.get("detail", ""))
-                    result = self._on_user_event(kind, detail)
-                    if asyncio.iscoroutine(result):
-                        await result
+            async for raw in ws:  # drain the client's hello; upstream is display-only
+                LOGGER.debug("ignoring upstream frame from presentation: %s", raw[:120])
         except Exception:
             pass
         finally:

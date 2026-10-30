@@ -1,7 +1,8 @@
 # raspberrygirl-presenter（聚合输出模块）
 
 树莓娘的聚合输出模块：接收 waycast 核心派发的表现输出单元，完成语音合成与播放、字幕
-揭示、形象表现与 PPT 呈现，并把前端交互与播放循环事件送回核心。核心层术语（Agent、
+揭示、形象表现与 PPT 呈现，并把"队列播完"事件（唯一输入帧，ADR-0005）送回核心。
+核心层术语（Agent、
 Output unit、Output result、Unified input、Invocation 等）以
 [waycast GLOSSARY](../waycast/GLOSSARY.md) 为准，此处只定义模块本地术语。
 

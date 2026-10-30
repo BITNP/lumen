@@ -100,12 +100,12 @@ CAPABILITY_OUTPUT_DESCRIPTION: Final = (
 )
 
 CAPABILITY_INPUT_DESCRIPTION: Final = (
-    "events from Raspberry Girl's frontend screen: user_interaction (a click or "
-    "request from the viewer, with the touched element in the metadata) and "
-    "queue_finished (the last dispatched expression finished playing; the input "
-    "content says how many sentences completed and which PPT page is showing; an "
-    "interrupted variant reports the queue was cleared). queue_finished is the "
-    "heartbeat that lets her decide the next step of her presentation."
+    "queue_finished only (ADR-0005): the last dispatched expression finished "
+    "playing; the input content says how many sentences completed and which PPT "
+    "page is showing; an interrupted variant reports the queue was cleared. "
+    "This is the module's sole input frame - the frontend screen is a pure "
+    "display surface with no user-operable elements - and it is the heartbeat "
+    "that lets her advance the presentation and decide the next step."
 )
 
 CAPABILITY_STATUS_DESCRIPTION: Final = (

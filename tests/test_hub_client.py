@@ -52,7 +52,7 @@ def test_both_handshake_and_frame_routing() -> None:
             status_provider=lambda: {"playing": False, "tts_engine": "fake"},
         ) as client:
             await asyncio.sleep(0.2)  # let the reader route unit + status frames
-            await client.send_input("前端点击", metadata={"event": "user_interaction"})
+            await client.send_input("树莓娘已完整播完本轮表达，共 2 句。", metadata={"event": "queue_finished"})
             await asyncio.sleep(0.05)
         server.close()
         await server.wait_closed()
@@ -79,7 +79,7 @@ def test_both_handshake_and_frame_routing() -> None:
 
     inp = received[3][1]
     assert inp["type"] == "input"
-    assert inp["payload"]["metadata"]["event"] == "user_interaction"
+    assert inp["payload"]["metadata"]["event"] == "queue_finished"
 
 
 def test_rejected_capability_raises() -> None:

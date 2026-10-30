@@ -1,8 +1,8 @@
 extends Control
-## Presentation process client: connects to the host presentation bridge,
-## applies subtitle/emotion/motion commands, reports user interactions.
-## The bridge protocol is module-internal (ADR-0002); the avatar and PPT
-## nodes arrive with M2/M3.
+## Presentation process client: connects to the host presentation bridge and
+## applies subtitle/speech/expression/motion/PPT commands. Pure display: the
+## window takes no user input and sends nothing upstream but the initial
+## hello (ADR-0005). The bridge protocol is module-internal (ADR-0002).
 
 const CONFIG_PATH := "res://presenter-config.json"
 const RECONNECT_INTERVAL := 1.0
@@ -95,23 +95,3 @@ func _apply_slide(message: Dictionary) -> void:
 		return
 	_slide.texture = ImageTexture.create_from_image(image)
 	_slide.visible = true
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if _slide.visible and _slide.get_global_rect().has_point(event.position):
-			# Page turns stay Agent-driven (ADR-0004): report the request.
-			var side := "next" if event.position.x > _slide.get_global_rect().size.x / 2.0 else "prev"
-			_report_user_event("ppt_page_request", side)
-		else:
-			_report_user_event("click", "window")
-
-
-func _report_user_event(kind: String, detail: String) -> void:
-	if not _connected:
-		return
-	_socket.send_text(JSON.stringify({
-		"type": "user_event",
-		"kind": kind,
-		"detail": detail,
-	}))

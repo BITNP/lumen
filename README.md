@@ -3,7 +3,7 @@
 树莓娘（Raspberry Girl）的**聚合输出模块**（waycast ADR-0010）：一个 waycast 模块
 （capability `kind="both"`），整合 TTS 语音合成与播放、Godot 图像前端（字幕、Live2D
 形象、表情、动作）与 PPT 显示翻页。核心 Agent 派发表现输出单元过来，模块按语义执行、
-立刻回 output result，并把前端交互与"队列播完"事件作为输入帧送回 hub。
+立刻回 output result，并把"队列播完"事件（唯一输入帧，ADR-0005）送回 hub。
 
 术语见 [GLOSSARY.md](GLOSSARY.md)；决策见 [docs/adr/](docs/adr/)。核心语义与 wire
 契约以 [waycast](../waycast/)（[GLOSSARY](../waycast/GLOSSARY.md)、
@@ -15,12 +15,12 @@
 
 - **宿主进程**（本仓库 Python 部分）：waycast 模块身份。连 hub `/ws/modules`（首帧
   capability advertisement），收 `output_unit` 帧入**单元队列**顺序执行（合成→播放→
-  字幕），逐单元回 `result` 帧；应答 `status_query`；发 `input` 帧
-  （`user_interaction` / `queue_finished`）。断线按指数退避重连。
-- **呈现进程**（`godot/`，Godot 4.6 + gd_cubism）：纯呈现。经本机
-  presentation bridge（`127.0.0.1:PRESENTER_BRIDGE_PORT` 上的 WebSocket）接收字幕
-  揭示、表情/动作、PPT 指令；用户操作回传宿主。bridge 协议是模块内部实现，与 waycast
-  无关。
+  字幕），逐单元回 `result` 帧；应答 `status_query`；发 `input` 帧（唯一一种
+  `queue_finished`，ADR-0005）。断线按指数退避重连。
+- **呈现进程**（`godot/`，Godot 4.6 + gd_cubism）：纯呈现、纯展示面（无任何用户
+  可操作元素）。经本机 presentation bridge（`127.0.0.1:PRESENTER_BRIDGE_PORT`
+  上的 WebSocket）接收字幕揭示、表情/动作、PPT 指令，上行只有连接握手。
+  bridge 协议是模块内部实现，与 waycast 无关。
 
 ## 输出单元 schema（M1）
 
@@ -86,8 +86,8 @@ uv run --locked python tools/prepare_deck.py 讲义.pptx --name lecture1 --out d
 ```
 
 生成 `decks/lecture1/001.png…` 与 `manifest.json`，Agent 即可
-`{"ppt": {"action": "open_deck", "deck": "lecture1"}}` 打开；前端左/右半屏点击
-以 `user_interaction` 请求上一页/下一页（翻页决定权在 Agent，ADR-0004）。
+`{"ppt": {"action": "open_deck", "deck": "lecture1"}}` 打开。前端是纯展示面：
+翻页只由 Agent 的 `ppt` 指令驱动，窗口不接收任何点击操作（ADR-0004/0005）。
 
 ## 测试
 

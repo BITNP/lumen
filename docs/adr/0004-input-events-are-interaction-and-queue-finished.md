@@ -1,5 +1,8 @@
 # 输入帧只两种：user_interaction 与 queue_finished
 
+> **状态：已被 ADR-0005 取代（2026-10-30）。** 聚合输出模块定为纯展示，
+> `user_interaction` 输入帧已整体移除；`queue_finished` 部分仍然有效。
+
 每个输入帧都触发一次 Invocation，所以往 hub 送的事件必须克制。ADR-0010 的输入侧例子
 列举了"前端交互、翻页完成、当前页、进度"。我们决定把它们收窄为两种输入帧：
 

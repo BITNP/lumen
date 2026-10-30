@@ -186,18 +186,6 @@ class PresenterApp:
             "total_pages": deck.total_pages if deck else None,
         }
 
-    async def on_user_event(self, kind: str, detail: str) -> None:
-        """Bridge user events from the presentation process into input frames."""
-        if self._client is None:
-            LOGGER.debug("user event while offline, dropping: %s", kind)
-            return
-        description = f"观众在前端执行了 {kind}"
-        if detail:
-            description = f"观众在前端执行了 {kind}：{detail}"
-        await self._client.send_input(
-            description, metadata={"event": "user_interaction", "kind": kind, "detail": detail}
-        )
-
     # -- round execution ----------------------------------------------------
 
     async def _run_round(self) -> None:
