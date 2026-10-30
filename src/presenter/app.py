@@ -101,6 +101,7 @@ class PresenterApp:
         if unit.is_stop:
             dropped = self._clear_queue()
             interrupted = self._round_active or dropped > 0
+            await self._bridge.send({"type": "speech_state", "active": False})
             LOGGER.info("control unit stop: dropped %d queued unit(s)", dropped)
             if interrupted:
                 await self._emit_queue_finished(interrupted=True)
@@ -185,6 +186,7 @@ class PresenterApp:
         text = unit.subtitle_text
         self._current_synth = synth
         await self._bridge.send({"type": "subtitle_set", "text": text, "visible_chars": 0})
+        await self._bridge.send({"type": "speech_state", "active": True})
         started_at = self._player.written_seconds
         total_bytes = 0
         duration_ms = 0
@@ -217,6 +219,7 @@ class PresenterApp:
             await self._reveal(text, started_at, duration_ms)
             await asyncio.sleep(_TICK)
         await self._reveal(text, started_at, duration_ms, full=True)
+        await self._bridge.send({"type": "speech_state", "active": False})
         self._current_synth = None
 
     async def _reveal(self, text: str, started_at: float, duration_ms: int, *, full: bool = False) -> None:

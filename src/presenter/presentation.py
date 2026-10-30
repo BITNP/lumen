@@ -6,6 +6,7 @@ module-internal and NOT part of the waycast wire protocol.
 Bridge protocol (host -> presentation process), one JSON object per frame:
   {"type": "subtitle_set", "text": str, "visible_chars": int}
   {"type": "subtitle_clear"}
+  {"type": "speech_state", "active": bool}          (mouth follows playback)
   {"type": "emotion", "tag": str} / {"type": "motion", "tag": str}
   {"type": "ppt", ...}                      (M3)
 Presentation process -> host:
