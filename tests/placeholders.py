@@ -15,6 +15,7 @@ from pathlib import Path
 from presenter.decks import SCHEMA_VERSION
 from presenter.playback import PlayerSink
 from presenter.presentation import PresentationBridge
+from presenter.tts import TtsError
 
 SILENT_RATE_BYTES = 32_000  # 16 kHz mono s16le
 
@@ -115,6 +116,27 @@ def make_png(width: int = 2, height: int = 2) -> bytes:
         + chunk(b"IDAT", zlib.compress(raw))
         + chunk(b"IEND", b"")
     )
+
+
+class ScriptedEngine:
+    """Engine whose per-call behaviour follows a script: ok / fail / mid.
+
+    "fail" raises before any audio; "mid" yields one chunk, then fails.
+    """
+
+    def __init__(self, name: str, script: list[str]) -> None:
+        self.name = name
+        self.script = script
+        self.calls = 0
+
+    async def stream(self, text: str) -> AsyncIterator[bytes]:
+        self.calls += 1
+        mode = self.script.pop(0) if self.script else "ok"
+        if mode == "fail":
+            raise TtsError(f"{self.name} offline")
+        yield f"{self.name}:".encode() + b"\x00\x00" * 8
+        if mode == "mid":
+            raise TtsError(f"{self.name} dropped mid-stream")
 
 
 def write_deck(root: Path, name: str = "demo", pages: int = 3) -> Path:

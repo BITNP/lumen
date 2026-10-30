@@ -65,3 +65,28 @@ def test_real_playback_device_available() -> None:
     if default is None or default[1] < 0:
         pytest.skip("no default output device on this machine")
     assert os.name == "posix"
+
+
+def test_audio_cpp_real_stream() -> None:
+    """Real audio.cpp server (external service): start audiocpp_server first."""
+    from presenter.app import _audio_cpp_engine
+
+    settings = _settings()
+    if not (settings.audio_cpp_model and settings.audio_cpp_voice_ref):
+        pytest.skip("PRESENTER_AUDIO_CPP_MODEL / PRESENTER_AUDIO_CPP_VOICE_REF not set")
+    engine = _audio_cpp_engine(settings)
+
+    async def run() -> bytes | None:
+        if not await engine.health():
+            return None
+        audio = bytearray()
+        async for chunk in engine.stream("你好，我是树莓娘。"):
+            audio.extend(chunk)
+        await engine.close()
+        return bytes(audio)
+
+    audio = asyncio.run(run())
+    if audio is None:
+        pytest.skip(f"audiocpp_server not healthy at {settings.audio_cpp_url}")
+    assert len(audio) > 16_000
+    assert len(audio) % 2 == 0
