@@ -5,7 +5,7 @@ import jsonschema
 import pytest
 
 from presenter.schema import OUTPUT_SCHEMA
-from presenter.units import UnitError, parse_unit
+from presenter.units import PptCommand, UnitError, parse_unit
 
 
 def _validate(payload: dict) -> None:
@@ -48,3 +48,34 @@ def test_parse_stop_and_guards() -> None:
         parse_unit({"subtitle": "只有字幕没有可执行字段"})  # speech/emotion/motion absent
     with pytest.raises(UnitError):
         parse_unit({"control": "bogus"})
+
+
+def test_ppt_schema() -> None:
+    for payload in (
+        {"ppt": {"action": "next"}},
+        {"ppt": {"action": "open_deck", "deck": "intro-1"}},
+        {"ppt": {"action": "goto", "page": 12}},
+        {"speech": "看这页。", "ppt": {"action": "next"}},
+    ):
+        _validate(payload)
+    for payload in (
+        {"ppt": {"action": "goto"}},  # goto requires page
+        {"ppt": {"action": "open_deck"}},  # open_deck requires deck
+        {"ppt": {"action": "flip"}},  # enum
+        {"ppt": {"action": "next", "slide": 3}},  # additionalProperties false
+        {"ppt": {"action": "open_deck", "deck": "../etc"}},  # safe-id pattern
+        {"ppt": {"action": "goto", "page": 0}},  # minimum
+    ):
+        with pytest.raises(jsonschema.ValidationError):
+            _validate(payload)
+
+
+def test_parse_ppt() -> None:
+    unit = parse_unit({"speech": "第一页。", "ppt": {"action": "open_deck", "deck": "demo"}})
+    assert unit.ppt == PptCommand(action="open_deck", deck="demo", page=None)
+    ppt_only = parse_unit({"ppt": {"action": "close"}})  # ppt alone is executable
+    assert ppt_only.speech is None and ppt_only.ppt is not None
+    with pytest.raises(UnitError):
+        parse_unit({"ppt": {"action": "goto"}})
+    with pytest.raises(UnitError):
+        parse_unit({"ppt": {"action": "next", "page": 0}})

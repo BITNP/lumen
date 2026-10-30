@@ -42,6 +42,43 @@ OUTPUT_SCHEMA: Final[dict[str, Any]] = {
                 "playback immediately; send it as its own unit before new speech"
             ),
         },
+        "ppt": {
+            "type": "object",
+            "description": "slide deck instruction executed before this unit's speech",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["open_deck", "goto", "next", "prev", "close"],
+                    "description": "open a prepared deck by name, jump, step, or hide",
+                },
+                "deck": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+                    "description": "deck name (exported via tools/prepare_deck.py); required for open_deck",
+                },
+                "page": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 200,
+                    "description": "1-based target page; required for goto",
+                },
+            },
+            "required": ["action"],
+            "additionalProperties": False,
+            "allOf": [
+                {
+                    "if": {"properties": {"action": {"const": "goto"}}, "required": ["action"]},
+                    "then": {"required": ["page"]},
+                },
+                {
+                    "if": {
+                        "properties": {"action": {"const": "open_deck"}},
+                        "required": ["action"],
+                    },
+                    "then": {"required": ["deck"]},
+                },
+            ],
+        },
     },
     "additionalProperties": False,
     "minProperties": 1,
@@ -52,11 +89,14 @@ CAPABILITY_OUTPUT_DESCRIPTION: Final = (
     "Emit ONE unit PER SPOKEN SENTENCE; the list order is the exact performance "
     "order, and emotion/motion tags ride on the sentence they accompany. Each unit "
     "optionally carries speech (one sentence to speak), subtitle (defaults to "
-    "speech), emotion and motion tags. To interrupt her current speech, first send "
-    'a unit {"control": "stop"} then the new sentences. Accepting a unit only means '
+    "speech), emotion and motion tags, and a ppt instruction "
+    "(ppt.action open_deck+deck to show a prepared slide deck, goto+page, next, "
+    "prev, or close) executed right before that sentence is spoken. To interrupt "
+    'her current speech, first send a unit {"control": "stop"} then the new '
+    "sentences. Accepting a unit only means "
     "queued: when the whole dispatched list has finished playing, a queue_finished "
     "input frame arrives carrying a summary; use status_presenter to check "
-    "playback progress, current PPT page or the active TTS engine at any time."
+    "playback progress, current PPT deck/page or the active TTS engine at any time."
 )
 
 CAPABILITY_INPUT_DESCRIPTION: Final = (
@@ -71,7 +111,7 @@ CAPABILITY_INPUT_DESCRIPTION: Final = (
 CAPABILITY_STATUS_DESCRIPTION: Final = (
     "live presentation state: tts_engine (active engine), playing, queue_depth, "
     "completed_sentences (current round), presentation_available (Godot window "
-    "connected), page/deck (PPT state from M3 on)"
+    "connected), deck/page/total_pages (current PPT state, null when closed)"
 )
 
 __all__ = [

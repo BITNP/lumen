@@ -7,11 +7,23 @@ reason that goes straight into the error output result (ADR-0002).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, cast
+
+PptAction = Literal["open_deck", "goto", "next", "prev", "close"]
+_PPT_ACTIONS = ("open_deck", "goto", "next", "prev", "close")
 
 
 class UnitError(ValueError):
     """Raised when an output unit payload cannot be executed."""
+
+
+@dataclass(frozen=True, slots=True)
+class PptCommand:
+    """Deck instruction riding on a unit (ADR-0003: list order = performance order)."""
+
+    action: PptAction
+    deck: str | None = None
+    page: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +35,7 @@ class ExpressionUnit:
     emotion: str | None = None
     motion: str | None = None
     control: str | None = None
+    ppt: PptCommand | None = None
 
     @property
     def is_stop(self) -> bool:
@@ -49,14 +62,35 @@ def parse_unit(payload: dict[str, Any]) -> ExpressionUnit:
         emotion=_text(payload.get("emotion")),
         motion=_text(payload.get("motion")),
         control=_text(payload.get("control")),
+        ppt=_parse_ppt(payload.get("ppt")),
     )
     if unit.is_stop:
         return unit
     if unit.control is not None:
         raise UnitError(f"unknown control value: {unit.control!r}")
-    if not (unit.speech or unit.emotion or unit.motion):
+    if not (unit.speech or unit.emotion or unit.motion or unit.ppt):
         raise UnitError("unit carries no executable field")
     return unit
+
+
+def _parse_ppt(value: Any) -> PptCommand | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise UnitError("ppt must be an object")
+    ppt = cast("dict[str, Any]", value)
+    action = ppt.get("action")
+    if action not in _PPT_ACTIONS:
+        raise UnitError(f"unknown ppt action: {action!r}")
+    deck = _text(ppt.get("deck"))
+    page = ppt.get("page")
+    if page is not None and (not isinstance(page, int) or isinstance(page, bool) or page < 1):
+        raise UnitError("ppt page must be a positive integer")
+    if action == "open_deck" and deck is None:
+        raise UnitError("ppt open_deck requires a deck name")
+    if action == "goto" and page is None:
+        raise UnitError("ppt goto requires a page")
+    return PptCommand(action=action, deck=deck, page=page)
 
 
 def _text(value: Any) -> str | None:
@@ -65,4 +99,4 @@ def _text(value: Any) -> str | None:
     return None
 
 
-__all__ = ["ExpressionUnit", "UnitError", "parse_unit"]
+__all__ = ["ExpressionUnit", "PptCommand", "PptAction", "UnitError", "parse_unit"]
