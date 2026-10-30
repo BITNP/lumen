@@ -31,11 +31,12 @@
 | --- | --- |
 | `speech` | 要朗读的一句文本（TTS + 播放 + 字幕文本来源） |
 | `subtitle` | 字幕文本，缺省 = `speech` |
-| `emotion` | 表情标签（M2 起驱动 Live2D；M1 记录并转发呈现进程） |
-| `motion` | 动作标签（同上） |
+| `emotion` | 表情标签，驱动 Live2D 表情 clip（nod/shake_head/wink） |
+| `motion` | 动作标签，驱动命名动作（wave/point/sweat/no） |
+| `ppt` | 翻页指令 `{action: open_deck|goto|next|prev|close, deck, page}`，在该句开口前执行 |
 | `control` | 目前仅 `"stop"`：清空单元队列并立即停止当前播放（ADR-0003） |
 
-PPT 字段（`ppt`）在 M3 加入 schema。hub 在派发前按本模块声明的 schema 校验单元。
+hub 在派发前按本模块声明的 schema 校验单元。
 
 ## 运行
 
@@ -55,8 +56,21 @@ godot --path godot/
 - **M2（已完成）**：Live2D 形象（上游 gd_cubism v0.9.1 插件 + 树莓娘模型资产），
   `emotion`/`motion` 标签驱动表情 clip 与命名动作，口型跟随宿主播放标志
   （bridge `speech_state` 消息）；空闲呼吸/眨眼/头部微动为本地程序化动画。
-- **M3**：PPT 显示与翻页（预导出逐页 PNG deck，`tools/` 提供转换脚本）。
+- **M3（已完成）**：PPT 显示与翻页。deck 预先用 `tools/prepare_deck.py` 导出为逐页 PNG
+  （soffice + pdftoppm，含 manifest 校验）；Agent 在单元的 `ppt` 字段携带
+  `open_deck/goto/next/prev/close` 指令，随句按序执行；deck 状态进 status 与
+  `queue_finished`，失败以异步 error result 回报且不断句。`PRESENTER_DECKS_DIR` 指定根目录。
 - **M4**：audio.cpp 本地兜底 TTS + 自动降级/`PRESENTER_TTS_ENGINE` 手动覆盖（ADR-0001）。
+
+## deck 准备
+
+```sh
+uv run --locked python tools/prepare_deck.py 讲义.pptx --name lecture1 --out decks
+```
+
+生成 `decks/lecture1/001.png…` 与 `manifest.json`，Agent 即可
+`{"ppt": {"action": "open_deck", "deck": "lecture1"}}` 打开；前端左/右半屏点击
+以 `user_interaction` 请求上一页/下一页（翻页决定权在 Agent，ADR-0004）。
 
 ## 测试
 
