@@ -8,7 +8,9 @@ Bridge protocol (host -> presentation process), one JSON object per frame:
   {"type": "subtitle_clear"}
   {"type": "speech_state", "active": bool}          (mouth follows playback)
   {"type": "emotion", "tag": str} / {"type": "motion", "tag": str}
-  {"type": "ppt", ...}                      (M3)
+  {"type": "ppt", "action": "show", "image": str(absolute png path),
+                 "deck": str, "page": int, "total_pages": int}
+  {"type": "ppt", "action": "hide"}
 Presentation process -> host:
   {"type": "hello"}
   {"type": "user_event", "kind": str, "detail": str}   -> forwarded as input
@@ -25,7 +27,7 @@ import contextlib
 import json
 import logging
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 import websockets
 from websockets.asyncio.server import ServerConnection
@@ -33,6 +35,14 @@ from websockets.asyncio.server import ServerConnection
 LOGGER = logging.getLogger(__name__)
 
 RestartGodot = Callable[[], "asyncio.Task[None] | None"]
+
+
+class BridgeSink(Protocol):
+    """What PresenterApp needs from the presentation bridge; tests record."""
+
+    @property
+    def available(self) -> bool: ...
+    async def send(self, command: dict[str, Any]) -> None: ...
 
 
 class PresentationBridge:
@@ -154,4 +164,4 @@ class GodotSupervisor:
             delay = min(delay * 2, 30.0)
 
 
-__all__ = ["PresentationBridge", "GodotSupervisor"]
+__all__ = ["PresentationBridge", "BridgeSink", "GodotSupervisor"]

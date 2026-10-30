@@ -12,15 +12,17 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from pathlib import Path
 from typing import Any
 
 from presenter.config import ConfigError, Settings
+from presenter.decks import DeckError, DeckManager
 from presenter.hub_client import PresenterClient
 from presenter.playback import PlayerSink
-from presenter.presentation import GodotSupervisor, PresentationBridge
+from presenter.presentation import BridgeSink, GodotSupervisor
 from presenter.subtitles import estimate_duration_ms, reveal_visible_chars
 from presenter.tts import BYTES_PER_SECOND, TtsEngine, TtsError
-from presenter.units import ExpressionUnit, UnitError, parse_unit
+from presenter.units import ExpressionUnit, PptCommand, UnitError, parse_unit
 
 LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +73,7 @@ class PresenterApp:
         settings: Settings,
         engine: TtsEngine,
         player: PlayerSink,
-        bridge: PresentationBridge,
+        bridge: BridgeSink,
         supervisor: GodotSupervisor | None = None,
     ) -> None:
         self._settings = settings
@@ -79,6 +81,7 @@ class PresenterApp:
         self._player = player
         self._bridge = bridge
         self._supervisor = supervisor
+        self._decks = DeckManager(Path(settings.decks_dir)) if settings.decks_dir else None
         self._queue: asyncio.Queue[ExpressionUnit] = asyncio.Queue(
             maxsize=settings.queue_max
         )
@@ -88,7 +91,6 @@ class PresenterApp:
         self._round_completed = 0
         self._round_active = False
         self._stop_requested = False
-        self._page: int | None = None  # real deck state lands in M3
 
     # -- hub-facing callbacks ---------------------------------------------
 
@@ -115,13 +117,16 @@ class PresenterApp:
         return "ok", "queued"
 
     def status(self) -> dict[str, Any]:
+        deck = self._decks.snapshot() if self._decks else None
         return {
             "tts_engine": self._engine.name,
             "playing": self._round_active,
             "queue_depth": self._queue.qsize(),
             "completed_sentences": self._round_completed,
             "presentation_available": self._bridge.available,
-            "page": self._page,
+            "deck": deck.deck if deck else None,
+            "page": deck.page if deck else None,
+            "total_pages": deck.total_pages if deck else None,
         }
 
     async def on_user_event(self, kind: str, detail: str) -> None:
@@ -152,6 +157,8 @@ class PresenterApp:
                     break
                 for tag, value in unit.visual_tags().items():
                     await self._bridge.send({"type": tag, "tag": value})
+                if unit.ppt is not None:
+                    await self._apply_ppt(unit.ppt)
                 if unit.speech is not None:
                     synth = synth_next or _Synth(self._engine, unit.speech)
                     synth_next = None
@@ -181,6 +188,20 @@ class PresenterApp:
             self._round_active = False
             if self._worker is asyncio.current_task():
                 self._worker = None
+
+    async def _apply_ppt(self, command: PptCommand) -> None:
+        """Execute a deck instruction; failure is an async error result, non-fatal."""
+        if self._decks is None:
+            await self._report_async_error(
+                f"ppt {command.action} failed: PRESENTER_DECKS_DIR is not configured"
+            )
+            return
+        try:
+            slide = self._decks.apply(command)
+        except DeckError as exc:
+            await self._report_async_error(f"ppt {command.action} failed: {exc}")
+            return
+        await self._bridge.send(slide)
 
     async def _speak(self, unit: ExpressionUnit, synth: _Synth) -> None:
         text = unit.subtitle_text
@@ -258,15 +279,25 @@ class PresenterApp:
             content = f"树莓娘的当前表达被打断清空，本轮已完成 {completed} 句。"
         else:
             content = f"树莓娘已完整播完本轮表达，共 {completed} 句。"
+        deck = self._decks.snapshot() if self._decks else None
         await self._client.send_input(
             content,
             metadata={
                 "event": "queue_finished",
                 "interrupted": interrupted,
                 "completed_sentences": completed,
-                "page": self._page,
+                "deck": deck.deck if deck else None,
+                "page": deck.page if deck else None,
             },
         )
+
+    async def _report_async_error(self, detail: str) -> None:
+        """Report a non-fatal execution failure back to the hub as a result."""
+        LOGGER.warning("async error result: %s", detail)
+        if self._client is None:
+            return
+        with contextlib.suppress(Exception):
+            await self._client.send_result("error", detail)
 
     async def _report_failure(self, exc: Exception) -> None:
         if self._client is None:
