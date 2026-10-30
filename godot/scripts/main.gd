@@ -14,6 +14,7 @@ var _reconnect_timer := 0.0
 
 @onready var _subtitle_label: Label = $SubtitleLabel
 @onready var _avatar = $Avatar
+@onready var _slide: TextureRect = $Slide
 
 
 func _ready() -> void:
@@ -77,13 +78,33 @@ func _handle_message(raw: String) -> void:
 		"motion":
 			if _avatar != null:
 				_avatar.play_motion(String(message.get("tag", "")))
+		"ppt":
+			_apply_slide(message)
 		_:
 			pass
 
 
+func _apply_slide(message: Dictionary) -> void:
+	if String(message.get("action", "")) == "hide":
+		_slide.visible = false
+		return
+	var path := String(message.get("image", ""))
+	var image := Image.load_from_file(path)
+	if image == null:
+		push_warning("slide image unavailable: %s" % path)
+		return
+	_slide.texture = ImageTexture.create_from_image(image)
+	_slide.visible = true
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_report_user_event("click", "window")
+		if _slide.visible and _slide.get_global_rect().has_point(event.position):
+			# Page turns stay Agent-driven (ADR-0004): report the request.
+			var side := "next" if event.position.x > _slide.get_global_rect().size.x / 2.0 else "prev"
+			_report_user_event("ppt_page_request", side)
+		else:
+			_report_user_event("click", "window")
 
 
 func _report_user_event(kind: String, detail: String) -> void:
