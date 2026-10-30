@@ -6,7 +6,9 @@ import contextlib
 import logging
 import os
 import signal
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import cast
 
 from dotenv import load_dotenv
 
@@ -50,6 +52,10 @@ async def _run() -> None:
             await supervisor.stop()
         await bridge.stop()
         player.stop()
+        close = getattr(engine, "close", None)
+        if close is not None:
+            with contextlib.suppress(Exception):
+                await cast("Callable[[], Awaitable[None]]", close)()
 
 
 def main() -> None:

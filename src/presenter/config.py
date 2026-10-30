@@ -21,6 +21,13 @@ TTS_ENGINE_KEY: Final = "PRESENTER_TTS_ENGINE"
 DASHSCOPE_API_KEY_KEY: Final = "PRESENTER_DASHSCOPE_API_KEY"
 COSYVOICE_MODEL_KEY: Final = "PRESENTER_COSYVOICE_MODEL"
 COSYVOICE_VOICE_KEY: Final = "PRESENTER_COSYVOICE_VOICE"
+AUDIO_CPP_URL_KEY: Final = "PRESENTER_AUDIO_CPP_URL"
+AUDIO_CPP_MODEL_KEY: Final = "PRESENTER_AUDIO_CPP_MODEL"
+AUDIO_CPP_VOICE_REF_KEY: Final = "PRESENTER_AUDIO_CPP_VOICE_REF"
+AUDIO_CPP_REFERENCE_TEXT_KEY: Final = "PRESENTER_AUDIO_CPP_REFERENCE_TEXT"
+AUDIO_CPP_SAMPLE_RATE_KEY: Final = "PRESENTER_AUDIO_CPP_SAMPLE_RATE"
+TTS_FALLBACK_AFTER_KEY: Final = "PRESENTER_TTS_FALLBACK_AFTER"
+TTS_RETRY_AFTER_KEY: Final = "PRESENTER_TTS_RETRY_AFTER_SECONDS"
 AUDIO_DEVICE_KEY: Final = "PRESENTER_AUDIO_DEVICE"
 BRIDGE_PORT_KEY: Final = "PRESENTER_BRIDGE_PORT"
 GODOT_PATH_KEY: Final = "PRESENTER_GODOT_PATH"
@@ -31,6 +38,11 @@ DEFAULT_TTS_ENGINE: Final = "auto"
 DEFAULT_COSYVOICE_MODEL: Final = "cosyvoice-v3-flash"
 DEFAULT_BRIDGE_PORT: Final = 8790
 DEFAULT_QUEUE_MAX: Final = 64
+# audio.cpp default port; 8080 is intentionally avoided (llama-server holds it).
+DEFAULT_AUDIO_CPP_URL: Final = "http://127.0.0.1:8081"
+DEFAULT_AUDIO_CPP_SAMPLE_RATE: Final = 24_000
+DEFAULT_TTS_FALLBACK_AFTER: Final = 3
+DEFAULT_TTS_RETRY_AFTER_SECONDS: Final = 60.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +59,13 @@ class Settings:
     bridge_port: int = DEFAULT_BRIDGE_PORT
     queue_max: int = DEFAULT_QUEUE_MAX
     decks_dir: str | None = None
+    audio_cpp_url: str = DEFAULT_AUDIO_CPP_URL
+    audio_cpp_model: str | None = None
+    audio_cpp_voice_ref: str | None = None
+    audio_cpp_reference_text: str | None = None
+    audio_cpp_sample_rate: int = DEFAULT_AUDIO_CPP_SAMPLE_RATE
+    tts_fallback_after: int = DEFAULT_TTS_FALLBACK_AFTER
+    tts_retry_after_seconds: float = DEFAULT_TTS_RETRY_AFTER_SECONDS
 
 
 class ConfigError(RuntimeError):
@@ -70,8 +89,6 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     engine = source.get(TTS_ENGINE_KEY, DEFAULT_TTS_ENGINE).strip() or DEFAULT_TTS_ENGINE
     if engine not in ("auto", "cosyvoice", "audio_cpp"):
         raise ConfigError(TTS_ENGINE_KEY, "must be auto, cosyvoice or audio_cpp")
-    if engine == "audio_cpp":
-        raise ConfigError(TTS_ENGINE_KEY, "audio_cpp lands in milestone M4 (ADR-0001)")
     return Settings(
         hub_url=hub_url,
         hub_token=source.get(WAYCAST_HUB_TOKEN_KEY, "").strip(),
@@ -86,7 +103,27 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         bridge_port=_parse_int(source, BRIDGE_PORT_KEY, DEFAULT_BRIDGE_PORT, minimum=1),
         queue_max=_parse_int(source, QUEUE_MAX_KEY, DEFAULT_QUEUE_MAX, minimum=1),
         decks_dir=_optional_text(source.get(DECKS_DIR_KEY)),
+        audio_cpp_url=_audio_cpp_url(source),
+        audio_cpp_model=_optional_text(source.get(AUDIO_CPP_MODEL_KEY)),
+        audio_cpp_voice_ref=_optional_text(source.get(AUDIO_CPP_VOICE_REF_KEY)),
+        audio_cpp_reference_text=_optional_text(source.get(AUDIO_CPP_REFERENCE_TEXT_KEY)),
+        audio_cpp_sample_rate=_parse_int(
+            source, AUDIO_CPP_SAMPLE_RATE_KEY, DEFAULT_AUDIO_CPP_SAMPLE_RATE, minimum=8_000
+        ),
+        tts_fallback_after=_parse_int(
+            source, TTS_FALLBACK_AFTER_KEY, DEFAULT_TTS_FALLBACK_AFTER, minimum=1
+        ),
+        tts_retry_after_seconds=_parse_float(
+            source, TTS_RETRY_AFTER_KEY, DEFAULT_TTS_RETRY_AFTER_SECONDS, minimum=1.0
+        ),
     )
+
+
+def _audio_cpp_url(source: Mapping[str, str]) -> str:
+    value = source.get(AUDIO_CPP_URL_KEY, "").strip() or DEFAULT_AUDIO_CPP_URL
+    if not value.startswith(("http://", "https://")):
+        raise ConfigError(AUDIO_CPP_URL_KEY, "must be an http:// or https:// URL")
+    return value.rstrip("/")
 
 
 def _required(source: Mapping[str, str], key: str) -> str:
@@ -115,6 +152,21 @@ def _parse_int(source: Mapping[str, str], key: str, default: int, *, minimum: in
         value = int(raw)
     except ValueError as exc:
         raise ConfigError(key, "must be an integer") from exc
+    if value < minimum:
+        raise ConfigError(key, f"must be >= {minimum}")
+    return value
+
+
+def _parse_float(
+    source: Mapping[str, str], key: str, default: float, *, minimum: float
+) -> float:
+    raw = source.get(key, "").strip()
+    if raw == "":
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ConfigError(key, "must be a number") from exc
     if value < minimum:
         raise ConfigError(key, f"must be >= {minimum}")
     return value
