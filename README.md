@@ -49,9 +49,12 @@ godot --path godot/
 
 ## 里程碑
 
-- **M1（本仓库当前）**：capability 握手 → 收单元 → CosyVoice 逐句流式合成（含预取）→
-  本机出声 → Godot 窗口线性字幕 → result 回报 → `queue_finished` 输入帧回 hub。
-- **M2**：Live2D 形象（gd_cubism v0.9.1），`emotion`/`motion` 标签驱动。
+- **M1（已完成，真实云合成冒烟待有网络/凭据环境执行）**：capability 握手 → 收单元 →
+  CosyVoice 逐句流式合成（含预取）→ 本机出声 → Godot 窗口线性字幕 → result 回报 →
+  `queue_finished` 输入帧回 hub。
+- **M2（已完成）**：Live2D 形象（上游 gd_cubism v0.9.1 插件 + 树莓娘模型资产），
+  `emotion`/`motion` 标签驱动表情 clip 与命名动作，口型跟随宿主播放标志
+  （bridge `speech_state` 消息）；空闲呼吸/眨眼/头部微动为本地程序化动画。
 - **M3**：PPT 显示与翻页（预导出逐页 PNG deck，`tools/` 提供转换脚本）。
 - **M4**：audio.cpp 本地兜底 TTS + 自动降级/`PRESENTER_TTS_ENGINE` 手动覆盖（ADR-0001）。
 
@@ -62,5 +65,5 @@ godot --path godot/
   `uv run --locked pytest -q -m "not real"`
 - 真实冒烟（开发机：有 DashScope 凭据、有音频输出、可选 Godot 窗口）：
   `uv run --locked pytest -q -m real`。全链路（waycast 核心 + 真实模型 + presenter）
-  的验收步骤见 `tests/test_smoke_e2e.py` 模块文档。
+  的验收步骤见 `tests/test_smoke_real.py` 模块文档。
 - 一律真实实现验证；假引擎/无声播放器等占位只存在于 `tests/`。
