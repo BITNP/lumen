@@ -25,6 +25,7 @@ AUDIO_DEVICE_KEY: Final = "PRESENTER_AUDIO_DEVICE"
 BRIDGE_PORT_KEY: Final = "PRESENTER_BRIDGE_PORT"
 GODOT_PATH_KEY: Final = "PRESENTER_GODOT_PATH"
 QUEUE_MAX_KEY: Final = "PRESENTER_QUEUE_MAX"
+DECKS_DIR_KEY: Final = "PRESENTER_DECKS_DIR"
 
 DEFAULT_TTS_ENGINE: Final = "auto"
 DEFAULT_COSYVOICE_MODEL: Final = "cosyvoice-v3-flash"
@@ -45,6 +46,7 @@ class Settings:
     godot_path: str | None = None
     bridge_port: int = DEFAULT_BRIDGE_PORT
     queue_max: int = DEFAULT_QUEUE_MAX
+    decks_dir: str | None = None
 
 
 class ConfigError(RuntimeError):
@@ -83,6 +85,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         godot_path=_optional_text(source.get(GODOT_PATH_KEY)),
         bridge_port=_parse_int(source, BRIDGE_PORT_KEY, DEFAULT_BRIDGE_PORT, minimum=1),
         queue_max=_parse_int(source, QUEUE_MAX_KEY, DEFAULT_QUEUE_MAX, minimum=1),
+        decks_dir=_optional_text(source.get(DECKS_DIR_KEY)),
     )
 
 

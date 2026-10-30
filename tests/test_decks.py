@@ -1,0 +1,114 @@
+"""Deck state machine: manifest validation, page flow, failure semantics."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from placeholders import make_png, write_deck
+from presenter.decks import DeckError, DeckManager
+from presenter.units import PptCommand, parse_unit
+
+
+@pytest.fixture()
+def root(tmp_path: Path) -> Path:
+    return write_deck(tmp_path, "demo", pages=3)
+
+
+def _ppt(action: str, **fields: object) -> PptCommand:
+    unit = parse_unit({"ppt": {"action": action, **fields}})
+    assert unit.ppt is not None
+    return unit.ppt
+
+
+def test_open_then_next_goto_prev_close(root: Path) -> None:
+    manager = DeckManager(root)
+    show = manager.apply(_ppt("open_deck", deck="demo"))
+    assert show == {
+        "type": "ppt",
+        "action": "show",
+        "image": str(root / "demo" / "001.png"),
+        "deck": "demo",
+        "page": 1,
+        "total_pages": 3,
+    }
+    assert manager.snapshot().page == 1
+    assert manager.apply(_ppt("next"))["page"] == 2
+    assert manager.apply(_ppt("goto", page=3))["page"] == 3
+    assert manager.apply(_ppt("prev"))["page"] == 2
+    snap = manager.snapshot()
+    assert (snap.deck, snap.page, snap.total_pages) == ("demo", 2, 3)
+    assert manager.apply(_ppt("close")) == {"type": "ppt", "action": "hide"}
+    assert manager.snapshot().deck is None
+
+
+def test_edges_report_rather_than_wrap(root: Path) -> None:
+    manager = DeckManager(root)
+    manager.apply(_ppt("open_deck", deck="demo"))
+    with pytest.raises(DeckError, match="first page"):
+        manager.apply(_ppt("prev"))
+    manager.apply(_ppt("goto", page=3))
+    with pytest.raises(DeckError, match="last page"):
+        manager.apply(_ppt("next"))
+    with pytest.raises(DeckError, match="out of range"):
+        manager.apply(_ppt("goto", page=4))
+    assert manager.snapshot().page == 3, "failed commands must not change state"
+
+
+def test_commands_without_open_deck_fail(root: Path) -> None:
+    manager = DeckManager(root)
+    for call in (_ppt("next"), _ppt("goto", page=1), _ppt("prev")):
+        with pytest.raises(DeckError, match="no deck"):
+            manager.apply(call)
+    assert manager.apply(_ppt("close")) == {"type": "ppt", "action": "hide"}
+
+
+def test_unknown_or_unsafe_deck(root: Path) -> None:
+    manager = DeckManager(root)
+    with pytest.raises(DeckError, match="unsafe"):
+        manager.apply(_ppt("open_deck", deck="../evil"))
+    with pytest.raises(DeckError, match="manifest unavailable"):
+        manager.apply(_ppt("open_deck", deck="ghost"))
+
+
+def test_manifest_rejections(tmp_path: Path) -> None:
+    def manifest_case(pages_value: object, version: str = "1.0.0") -> Path:
+        directory = tmp_path / "case"
+        directory.mkdir(exist_ok=True)
+        (directory / "manifest.json").write_text(
+            json.dumps({"schema_version": version, "pages": pages_value}), encoding="utf-8"
+        )
+        return tmp_path
+
+    manager = DeckManager(manifest_case(["001.png"], version="2.0.0"))
+    with pytest.raises(DeckError, match="schema_version"):
+        manager.apply(_ppt("open_deck", deck="case"))
+    manager = DeckManager(manifest_case(["page1.png"]))
+    with pytest.raises(DeckError, match="pages list"):
+        manager.apply(_ppt("open_deck", deck="case"))
+    manager = DeckManager(manifest_case([f"{i:03d}.png" for i in range(1, 202)]))
+    with pytest.raises(DeckError, match="pages list"):
+        manager.apply(_ppt("open_deck", deck="case"))
+
+
+def test_page_file_must_be_a_bounded_png(tmp_path: Path) -> None:
+    directory = tmp_path / "bad"
+    directory.mkdir()
+    (directory / "manifest.json").write_text(
+        json.dumps({"schema_version": "1.0.0", "pages": ["001.png"]}), encoding="utf-8"
+    )
+    (directory / "001.png").write_bytes(b"not a png at all, just text padding")
+    manager = DeckManager(tmp_path)
+    with pytest.raises(DeckError, match="not a PNG"):
+        manager.apply(_ppt("open_deck", deck="bad"))
+    (directory / "001.png").unlink()
+    with pytest.raises(DeckError, match="unavailable"):
+        manager.apply(_ppt("open_deck", deck="bad"))
+    # A real PNG whose header claims oversized dimensions is rejected.
+    oversized = make_png(2, 2)
+    header = bytearray(oversized)
+    header[16:20] = (9000).to_bytes(4, "big")
+    (directory / "001.png").write_bytes(bytes(header))
+    with pytest.raises(DeckError, match="dimensions"):
+        manager.apply(_ppt("open_deck", deck="bad"))

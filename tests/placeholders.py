@@ -1,4 +1,4 @@
-"""Test-only placeholders: silent player + fake TTS engine.
+"""Test-only placeholders: silent player, fake TTS engine, deck fixtures.
 
 Placeholders never ship in src (workspace rule); real synthesis is covered by
 the `real`-marked smoke tests against DashScope.
@@ -6,9 +6,15 @@ the `real`-marked smoke tests against DashScope.
 from __future__ import annotations
 
 import asyncio
+import json
+import struct
+import zlib
 from collections.abc import AsyncIterator
+from pathlib import Path
 
+from presenter.decks import SCHEMA_VERSION
 from presenter.playback import PlayerSink
+from presenter.presentation import PresentationBridge
 
 SILENT_RATE_BYTES = 32_000  # 16 kHz mono s16le
 
@@ -77,3 +83,54 @@ class RecordingClient:
 
     async def send_result(self, status: str, detail: str) -> None:
         self.results.append((status, detail))
+
+
+class RecordingBridge(PresentationBridge):
+    """Bridge double that records commands instead of sending to a window."""
+
+    def __init__(self) -> None:
+        super().__init__(port=0)
+        self.commands: list[dict] = []
+
+    async def send(self, command: dict) -> None:  # type: ignore[override]
+        self.commands.append(command)
+
+
+def make_png(width: int = 2, height: int = 2) -> bytes:
+    """A real, minimal RGB PNG (loads in any PNG decoder)."""
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data))
+        )
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    raw = b"".join(b"\x00" + b"\x7F\x80\x81" * width for _ in range(height))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
+
+
+def write_deck(root: Path, name: str = "demo", pages: int = 3) -> Path:
+    """Write a valid prepared deck (manifest + real PNG pages) under root."""
+    directory = root / name
+    directory.mkdir(parents=True)
+    page_names = [f"{index:03d}.png" for index in range(1, pages + 1)]
+    for page_name in page_names:
+        (directory / page_name).write_bytes(make_png())
+    manifest = {
+        "schema_version": SCHEMA_VERSION,
+        "title": name,
+        "total_pages": pages,
+        "pages": page_names,
+    }
+    (directory / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
+    )
+    return root
