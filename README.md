@@ -60,7 +60,24 @@ godot --path godot/
   （soffice + pdftoppm，含 manifest 校验）；Agent 在单元的 `ppt` 字段携带
   `open_deck/goto/next/prev/close` 指令，随句按序执行；deck 状态进 status 与
   `queue_finished`，失败以异步 error result 回报且不断句。`PRESENTER_DECKS_DIR` 指定根目录。
-- **M4**：audio.cpp 本地兜底 TTS + 自动降级/`PRESENTER_TTS_ENGINE` 手动覆盖（ADR-0001）。
+- **M4（已完成，真实合成冒烟待模型下载后在有服务的环境执行）**：audio.cpp 本地兜底
+  TTS + 自动降级（ADR-0001），详见下节。
+
+## TTS 引擎与降级（ADR-0001）
+
+`PRESENTER_TTS_ENGINE=auto|cosyvoice|audio_cpp`（默认 `auto`）：
+
+- **cosyvoice**（云主用）：DashScope 音色复刻，需 API key 与克隆 voice id。
+- **audio_cpp**（本地兜底）：HTTP 调外部 `audiocpp_server` 的
+  `POST /v1/audio/speech`（SSE 流式 PCM），音色克隆走 `voice_ref` WAV +
+  `reference_text`（留空则 `x_vector_only_mode`）；模型原生 24 kHz 线性重采样到
+  模块统一的 16 kHz。audiocpp_server 是**外部服务**，须自行启动（默认探
+  `127.0.0.1:8081`，8080 被本机嵌入服务占用），宿主只探 `/health`、绝不拉起它。
+- **auto**：云为主。某句在**出声前**失败则透明地换另一引擎重试（听感无断档）；
+  云连续失败 `PRESENTER_TTS_FALLBACK_AFTER`（默认 3）句后降级为本地优先；降级冷却
+  `PRESENTER_TTS_RETRY_AFTER_SECONDS`（默认 60）秒后下一句先回探云端，成功即恢复。
+  已出声后失败不重试（绝不重复播音），直接报错 result。status 的 `tts_engine`
+  实时反映当前生效引擎。
 
 ## deck 准备
 
@@ -77,7 +94,7 @@ uv run --locked python tools/prepare_deck.py 讲义.pptx --name lecture1 --out d
 - 离线单测（wire、schema/单元、字幕数学、队列语义、hub 客户端对 tests/ 内的
   test-only 假 hub 服务端）：
   `uv run --locked pytest -q -m "not real"`
-- 真实冒烟（开发机：有 DashScope 凭据、有音频输出、可选 Godot 窗口）：
-  `uv run --locked pytest -q -m real`。全链路（waycast 核心 + 真实模型 + presenter）
-  的验收步骤见 `tests/test_smoke_real.py` 模块文档。
+- 真实冒烟（开发机：有 DashScope 凭据、有音频输出、可选 Godot 窗口与已启动的
+  audiocpp_server）：`uv run --locked pytest -q -m real`。全链路（waycast 核心 +
+  真实模型 + presenter）的验收步骤见 `tests/test_smoke_real.py` 模块文档。
 - 一律真实实现验证；假引擎/无声播放器等占位只存在于 `tests/`。
