@@ -31,7 +31,46 @@ _SYNTH_DONE = object()  # end-of-sentence marker in the audio chunk queue
 
 
 def build_engine(settings: Settings) -> TtsEngine:
-    """Construct the primary TTS engine (cosyvoice; audio_cpp arrives in M4)."""
+    """Assemble the TTS engine per PRESENTER_TTS_ENGINE (ADR-0001).
+
+    auto: cloud CosyVoice as primary with the audio.cpp fallback engaged
+    automatically on repeated cloud failures; cosyvoice / audio_cpp force one
+    engine with no degradation.
+    """
+    if settings.tts_engine == "cosyvoice":
+        return _cosyvoice_engine(settings)
+    if settings.tts_engine == "audio_cpp":
+        return _audio_cpp_engine(settings)
+    primary = _cosyvoice_engine(settings) if _cosyvoice_configured(settings) else None
+    fallback = _audio_cpp_engine(settings) if _audio_cpp_configured(settings) else None
+    if primary is not None and fallback is not None:
+        from presenter.fallback import AutoTtsEngine
+
+        return AutoTtsEngine(
+            primary,
+            fallback,
+            fail_after=settings.tts_fallback_after,
+            retry_after_seconds=settings.tts_retry_after_seconds,
+        )
+    if primary is not None:
+        return primary
+    if fallback is not None:
+        return fallback
+    raise ConfigError(
+        "PRESENTER_TTS_ENGINE",
+        "auto needs cosyvoice (API key + voice) or audio_cpp (model + voice ref)",
+    )
+
+
+def _cosyvoice_configured(settings: Settings) -> bool:
+    return bool(settings.dashscope_api_key and settings.cosyvoice_voice)
+
+
+def _audio_cpp_configured(settings: Settings) -> bool:
+    return bool(settings.audio_cpp_model and settings.audio_cpp_voice_ref)
+
+
+def _cosyvoice_engine(settings: Settings) -> TtsEngine:
     from presenter.cosyvoice import CosyVoiceEngine
 
     if not settings.dashscope_api_key:
@@ -42,6 +81,24 @@ def build_engine(settings: Settings) -> TtsEngine:
         api_key=settings.dashscope_api_key,
         model=settings.cosyvoice_model,
         voice=settings.cosyvoice_voice,
+    )
+
+
+def _audio_cpp_engine(settings: Settings) -> TtsEngine:
+    from presenter.audiocpp import AudioCppEngine
+
+    if not settings.audio_cpp_model:
+        raise ConfigError("PRESENTER_AUDIO_CPP_MODEL", "server-configured model id is required")
+    if not settings.audio_cpp_voice_ref:
+        raise ConfigError(
+            "PRESENTER_AUDIO_CPP_VOICE_REF", "cloning reference WAV path is required"
+        )
+    return AudioCppEngine(
+        base_url=settings.audio_cpp_url,
+        model=settings.audio_cpp_model,
+        voice_ref=settings.audio_cpp_voice_ref,
+        reference_text=settings.audio_cpp_reference_text,
+        sample_rate=settings.audio_cpp_sample_rate,
     )
 
 
