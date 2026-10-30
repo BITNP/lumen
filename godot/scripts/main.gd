@@ -3,6 +3,8 @@ extends Control
 ## applies subtitle/speech/expression/motion/PPT commands. Pure display: the
 ## window takes no user input and sends nothing upstream but the initial
 ## hello (ADR-0005). The bridge protocol is module-internal (ADR-0002).
+## Stage layout and the slide entrance animation follow the hand-designed
+## visuals of the retired vtuber-frontend (1920x1080 canvas_items stretch).
 
 const CONFIG_PATH := "res://presenter-config.json"
 const RECONNECT_INTERVAL := 1.0
@@ -12,9 +14,10 @@ var _url := "ws://127.0.0.1:8790/"
 var _connected := false
 var _reconnect_timer := 0.0
 
-@onready var _subtitle_label: Label = $SubtitleLabel
-@onready var _avatar = $Avatar
+@onready var _label: Label = $CaptionLayer/TextLabel/Label
+@onready var _avatar = $Avatar/Model
 @onready var _slide: TextureRect = $Slide
+@onready var _animations: AnimationPlayer = $AnimationPlayer
 
 
 func _ready() -> void:
@@ -66,9 +69,9 @@ func _handle_message(raw: String) -> void:
 		"subtitle_set":
 			var text := String(message.get("text", ""))
 			var visible := int(message.get("visible_chars", 0))
-			_subtitle_label.text = text.substr(0, visible)
+			_label.text = text.substr(0, visible)
 		"subtitle_clear":
-			_subtitle_label.text = ""
+			_label.text = ""
 		"speech_state":
 			if _avatar != null:
 				_avatar.set_speaking(bool(message.get("active", false)))
@@ -86,7 +89,11 @@ func _handle_message(raw: String) -> void:
 
 func _apply_slide(message: Dictionary) -> void:
 	if String(message.get("action", "")) == "hide":
-		_slide.visible = false
+		if _slide.visible:
+			if _animations.has_animation("unload_slide"):
+				_animations.play("unload_slide")
+			else:
+				_slide.visible = false
 		return
 	var path := String(message.get("image", ""))
 	var image := Image.load_from_file(path)
@@ -94,4 +101,7 @@ func _apply_slide(message: Dictionary) -> void:
 		push_warning("slide image unavailable: %s" % path)
 		return
 	_slide.texture = ImageTexture.create_from_image(image)
-	_slide.visible = true
+	if not _slide.visible:
+		_slide.visible = true
+		if _animations.has_animation("load_slide"):
+			_animations.play("load_slide")  # slide in, avatar to the lower-right corner

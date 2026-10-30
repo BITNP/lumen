@@ -1,7 +1,171 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/live2d_avatar.gd" id="2_avatar"]
+[ext_resource type="Texture2D" path="res://assets/background.svg" id="3_bg"]
+[ext_resource type="Texture2D" path="res://assets/textarea.svg" id="4_textarea"]
+[ext_resource type="FontFile" path="res://assets/unifont-17.0.03.otf" id="5_font"]
+
+[sub_resource type="Animation" id="Animation_reset"]
+resource_name = "RESET"
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Slide:position")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(-1456, 81)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Avatar:position")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(960.00006, 1297)]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Avatar:scale")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(0.45, 0.45)]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("CaptionLayer/TextLabel:position")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [Vector2(420, 840)]
+}
+
+[sub_resource type="Animation" id="Animation_load"]
+resource_name = "load_slide"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Slide:position")
+tracks/0/interp = 2
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(-1456, 81), Vector2(85, 75)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Avatar:position")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(960.00006, 1297), Vector2(1596, 1328)]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Avatar:scale")
+tracks/2/interp = 2
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0.45, 0.45), Vector2(0.5, 0.5)]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("CaptionLayer/TextLabel:position")
+tracks/3/interp = 2
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(420, 840), Vector2(200, 805)]
+}
+
+[sub_resource type="Animation" id="Animation_unload"]
+resource_name = "unload_slide"
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Slide:position")
+tracks/0/interp = 2
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(85, 75), Vector2(-1456, 81)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Avatar:position")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(1596, 1328), Vector2(960.00006, 1297)]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Avatar:scale")
+tracks/2/interp = 2
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(0.5, 0.5), Vector2(0.45, 0.45)]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("CaptionLayer/TextLabel:position")
+tracks/3/interp = 2
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 1),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector2(200, 805), Vector2(420, 840)]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_main"]
+_data = {
+&"RESET": SubResource("Animation_reset"),
+&"load_slide": SubResource("Animation_load"),
+&"unload_slide": SubResource("Animation_unload")
+}
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -12,17 +176,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_main")
 
-[node name="Background" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.08, 0.05, 0.1, 1)
-
-[node name="Slide" type="TextureRect" parent="."]
-visible = false
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -30,28 +184,66 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+texture = ExtResource("3_bg")
 expand_mode = 1
 stretch_mode = 6
 
-[node name="Avatar" type="GDCubismUserModel" parent="."]
-position = Vector2(640, 430)
-scale = Vector2(0.42, 0.42)
+[node name="Slide" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_left = -1456.0
+offset_top = 81.0
+offset_right = -176.0
+offset_bottom = 801.0
+mouse_filter = 2
+expand_mode = 1
+
+[node name="Avatar" type="Node2D" parent="."]
+z_index = 1
+position = Vector2(960.00006, 1297)
+scale = Vector2(0.45, 0.45)
+
+[node name="Model" type="GDCubismUserModel" parent="Avatar"]
+position = Vector2(-27, -1968)
 script = ExtResource("2_avatar")
 
-[node name="SubtitleLabel" type="Label" parent="."]
-layout_mode = 1
+[node name="CaptionLayer" type="CanvasLayer" parent="."]
+
+[node name="TextLabel" type="NinePatchRect" parent="CaptionLayer"]
+z_index = 2
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -480.0
-offset_top = -110.0
-offset_right = 480.0
-offset_bottom = -40.0
+offset_left = -540.0
+offset_top = -240.0
+offset_right = 540.0
+offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_font_sizes/font_size = 34
-horizontal_alignment = 1
-vertical_alignment = 1
-autowrap_mode = 3
+mouse_filter = 2
+texture = ExtResource("4_textarea")
+region_rect = Rect2(19.20584, 18.24511, 1882.3357, 322.9555)
+patch_margin_left = 42
+patch_margin_top = 55
+patch_margin_right = 43
+patch_margin_bottom = 54
+
+[node name="Label" type="Label" parent="CaptionLayer/TextLabel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 42.0
+offset_top = 55.0
+offset_right = -43.0
+offset_bottom = -54.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_fonts/font = ExtResource("5_font")
+theme_override_font_sizes/font_size = 32
+autowrap_mode = 1
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries/ = SubResource("AnimationLibrary_main")

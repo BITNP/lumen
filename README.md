@@ -55,13 +55,28 @@ godot --path godot/
   `queue_finished` 输入帧回 hub。
 - **M2（已完成）**：Live2D 形象（上游 gd_cubism v0.9.1 插件 + 树莓娘模型资产），
   `emotion`/`motion` 标签驱动表情 clip 与命名动作，口型跟随宿主播放标志
-  （bridge `speech_state` 消息）；空闲呼吸/眨眼/头部微动为本地程序化动画。
+  （bridge `speech_state` 消息）；空闲呼吸/眨眼/头部微动为本地程序化动画。形象置于
+  手设计舞台布局的待机位（见下节"舞台视觉"）。
 - **M3（已完成）**：PPT 显示与翻页。deck 预先用 `tools/prepare_deck.py` 导出为逐页 PNG
   （soffice + pdftoppm，含 manifest 校验）；Agent 在单元的 `ppt` 字段携带
-  `open_deck/goto/next/prev/close` 指令，随句按序执行；deck 状态进 status 与
+  `open_deck/goto/next/prev/close` 指令，随句按序执行；开片/收片播放舞台联动动画
+  （见下节"舞台视觉"）；deck 状态进 status 与
   `queue_finished`，失败以异步 error result 回报且不断句。`PRESENTER_DECKS_DIR` 指定根目录。
 - **M4（已完成，真实合成冒烟待模型下载后在有服务的环境执行）**：audio.cpp 本地兜底
   TTS + 自动降级（ADR-0001），详见下节。
+
+## 舞台视觉
+
+呈现窗口的版面**照搬并改自**旧 vtuber-frontend 仓库中人工设计的视觉（该仓库只读保留
+为历史参考；美术资产 `background.svg`、`textarea.svg`、`unifont-17.0.03.otf` 直接复用）：
+
+- **1920×1080** 基准分辨率，`canvas_items` 拉伸模式；`background.svg` 全屏背景。
+- **待机位**：形象居中（960,1297，scale 0.45，模型原点补偿在子节点偏移内）；
+  字幕气泡（`textarea.svg` 九宫格 + unifont 32 号）贴屏幕底部居中。
+- **开片动画 `load_slide`**（1s）：1280×720 幻灯片从屏幕左侧外滑入停在左上
+  （85,75），同时形象滑向右下角并放大（→1596,1328，scale 0.5），字幕气泡左移上移。
+- **收片动画 `unload_slide`**：`load_slide` 的逆过程（改进点——旧设计没有收片动画，
+  hide 时版面不会复位）。
 
 ## TTS 引擎与降级（ADR-0001）
 
