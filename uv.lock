@@ -1060,6 +1060,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "dashscope" },
+    { name = "httpx" },
     { name = "python-dotenv" },
     { name = "sounddevice" },
     { name = "websockets" },
@@ -1076,6 +1077,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dashscope", specifier = ">=1.24,<2" },
+    { name = "httpx", specifier = ">=0.28,<2" },
     { name = "python-dotenv", specifier = ">=1,<2" },
     { name = "sounddevice", specifier = "==0.5.5" },
     { name = "websockets", specifier = "==16.1.1" },

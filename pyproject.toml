@@ -9,6 +9,7 @@ authors = [
 ]
 dependencies = [
     "dashscope>=1.24,<2",
+    "httpx>=0.28,<2",
     "python-dotenv>=1,<2",
     "sounddevice==0.5.5",
     "websockets==16.1.1",
