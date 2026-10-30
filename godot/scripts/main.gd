@@ -11,10 +11,9 @@ var _socket := WebSocketPeer.new()
 var _url := "ws://127.0.0.1:8790/"
 var _connected := false
 var _reconnect_timer := 0.0
-var _emotion := ""
-var _motion := ""
 
 @onready var _subtitle_label: Label = $SubtitleLabel
+@onready var _avatar = $Avatar
 
 
 func _ready() -> void:
@@ -69,10 +68,15 @@ func _handle_message(raw: String) -> void:
 			_subtitle_label.text = text.substr(0, visible)
 		"subtitle_clear":
 			_subtitle_label.text = ""
+		"speech_state":
+			if _avatar != null:
+				_avatar.set_speaking(bool(message.get("active", false)))
 		"emotion":
-			_emotion = String(message.get("tag", ""))  # drives Live2D in M2
+			if _avatar != null:
+				_avatar.play_expression(String(message.get("tag", "")))
 		"motion":
-			_motion = String(message.get("tag", ""))  # drives Live2D in M2
+			if _avatar != null:
+				_avatar.play_motion(String(message.get("tag", "")))
 		_:
 			pass
 

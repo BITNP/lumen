@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/live2d_avatar.gd" id="2_avatar"]
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -19,6 +20,11 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.08, 0.05, 0.1, 1)
+
+[node name="Avatar" type="GDCubismUserModel" parent="."]
+position = Vector2(640, 430)
+scale = Vector2(0.42, 0.42)
+script = ExtResource("2_avatar")
 
 [node name="SubtitleLabel" type="Label" parent="."]
 layout_mode = 1
