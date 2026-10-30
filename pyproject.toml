@@ -1,0 +1,58 @@
+[project]
+name = "raspberrygirl-presenter"
+version = "0.1.0"
+description = "Raspberry Girl aggregate output module: waycast unit -> TTS + playback + Godot frontend + PPT."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "noteas", email = "3818384646@qq.com" }
+]
+dependencies = [
+    "dashscope>=1.24,<2",
+    "python-dotenv>=1,<2",
+    "sounddevice==0.5.5",
+    "websockets==16.1.1",
+]
+
+[project.scripts]
+presenter = "presenter.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/presenter"]
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.31,<2",
+    "jsonschema>=4.23,<5",
+    "pytest>=8",
+    "ruff>=0.12",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = ["-ra", "--strict-config", "--strict-markers"]
+filterwarnings = ["error"]
+markers = [
+    "real: needs real external services / devices (DashScope, audio out, hub); run on the dev machine",
+]
+
+[tool.pyright]
+typeCheckingMode = "strict"
+include = ["src"]
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = "none"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

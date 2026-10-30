@@ -1,0 +1,66 @@
+# raspberrygirl-presenter
+
+树莓娘（Raspberry Girl）的**聚合输出模块**（waycast ADR-0010）：一个 waycast 模块
+（capability `kind="both"`），整合 TTS 语音合成与播放、Godot 图像前端（字幕、Live2D
+形象、表情、动作）与 PPT 显示翻页。核心 Agent 派发表现输出单元过来，模块按语义执行、
+立刻回 output result，并把前端交互与"队列播完"事件作为输入帧送回 hub。
+
+术语见 [GLOSSARY.md](GLOSSARY.md)；决策见 [docs/adr/](docs/adr/)。核心语义与 wire
+契约以 [waycast](../waycast/)（[GLOSSARY](../waycast/GLOSSARY.md)、
+[ADR-0008](../waycast/docs/adr/0008-module-network-protocol.md)、
+[ADR-0010](../waycast/docs/adr/0010-aggregate-output-module.md)、
+[ADR-0011](../waycast/docs/adr/0011-agent-decides-turn-taking.md)）为唯一权威。
+
+## 形态（ADR-0002）
+
+- **宿主进程**（本仓库 Python 部分）：waycast 模块身份。连 hub `/ws/modules`（首帧
+  capability advertisement），收 `output_unit` 帧入**单元队列**顺序执行（合成→播放→
+  字幕），逐单元回 `result` 帧；应答 `status_query`；发 `input` 帧
+  （`user_interaction` / `queue_finished`）。断线按指数退避重连。
+- **呈现进程**（`godot/`，Godot 4.6 + gd_cubism）：纯呈现。经本机
+  presentation bridge（`127.0.0.1:PRESENTER_BRIDGE_PORT` 上的 WebSocket）接收字幕
+  揭示、表情/动作、PPT 指令；用户操作回传宿主。bridge 协议是模块内部实现，与 waycast
+  无关。
+
+## 输出单元 schema（M1）
+
+一次 Invocation 派发的是**单元列表，列表顺序=表演顺序，按句一单元**（ADR-0003）。
+所有字段可选、至少一个：
+
+| 字段 | 语义 |
+| --- | --- |
+| `speech` | 要朗读的一句文本（TTS + 播放 + 字幕文本来源） |
+| `subtitle` | 字幕文本，缺省 = `speech` |
+| `emotion` | 表情标签（M2 起驱动 Live2D；M1 记录并转发呈现进程） |
+| `motion` | 动作标签（同上） |
+| `control` | 目前仅 `"stop"`：清空单元队列并立即停止当前播放（ADR-0003） |
+
+PPT 字段（`ppt`）在 M3 加入 schema。hub 在派发前按本模块声明的 schema 校验单元。
+
+## 运行
+
+```sh
+uv sync --locked
+cp .env.example .env   # 填入 hub 地址/token 与 DashScope 凭据
+uv run --locked presenter
+# 呈现窗口（未配 PRESENTER_GODOT_PATH 时手动启动）：
+godot --path godot/
+```
+
+## 里程碑
+
+- **M1（本仓库当前）**：capability 握手 → 收单元 → CosyVoice 逐句流式合成（含预取）→
+  本机出声 → Godot 窗口线性字幕 → result 回报 → `queue_finished` 输入帧回 hub。
+- **M2**：Live2D 形象（gd_cubism v0.9.1），`emotion`/`motion` 标签驱动。
+- **M3**：PPT 显示与翻页（预导出逐页 PNG deck，`tools/` 提供转换脚本）。
+- **M4**：audio.cpp 本地兜底 TTS + 自动降级/`PRESENTER_TTS_ENGINE` 手动覆盖（ADR-0001）。
+
+## 测试
+
+- 离线单测（wire、schema/单元、字幕数学、队列语义、hub 客户端对 tests/ 内的
+  test-only 假 hub 服务端）：
+  `uv run --locked pytest -q -m "not real"`
+- 真实冒烟（开发机：有 DashScope 凭据、有音频输出、可选 Godot 窗口）：
+  `uv run --locked pytest -q -m real`。全链路（waycast 核心 + 真实模型 + presenter）
+  的验收步骤见 `tests/test_smoke_e2e.py` 模块文档。
+- 一律真实实现验证；假引擎/无声播放器等占位只存在于 `tests/`。
