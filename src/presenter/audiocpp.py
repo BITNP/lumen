@@ -97,6 +97,9 @@ class AudioCppEngine:
         self._client = httpx.AsyncClient(
             base_url=base_url,
             timeout=httpx.Timeout(timeout_seconds, connect=10.0, read=timeout_seconds),
+            # audio.cpp is a localhost service: ambient proxy env vars (HTTP_PROXY,
+            # ALL_PROXY socks://...) must never intercept or break these calls.
+            trust_env=False,
         )
 
     async def close(self) -> None:

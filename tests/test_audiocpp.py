@@ -179,3 +179,22 @@ def test_linear_resampler_preserves_value_and_length() -> None:
     assert len(out) == 320  # 240 samples -> 160 samples
     values = {int.from_bytes(out[i : i + 2], "little", signed=True) for i in range(0, 320, 2)}
     assert values == {1000}
+
+
+def test_engine_ignores_ambient_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """audio.cpp is a localhost service: ambient proxy vars must not be honored.
+
+    Regression: ALL_PROXY=socks://127.0.0.1:1080 made httpx raise at client
+    construction (unknown proxy scheme); trust_env=False is the fix.
+    """
+    monkeypatch.setenv("ALL_PROXY", "socks://127.0.0.1:1080")
+    monkeypatch.setenv("HTTP_PROXY", "socks://127.0.0.1:1080")
+
+    async def scenario() -> bool:
+        engine = AudioCppEngine(base_url="http://127.0.0.1:1", model="m", voice_ref="/tmp/x.wav")
+        try:
+            return await engine.health()  # dead port: False, but construction survived
+        finally:
+            await engine.close()
+
+    assert asyncio.run(scenario()) is False
