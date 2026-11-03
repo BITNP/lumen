@@ -23,12 +23,15 @@ LOG_LEVEL_KEY = "PRESENTER_LOG_LEVEL"
 DEPS_LOG_LEVEL_KEY = "PRESENTER_DEPS_LOG_LEVEL"
 # 第三方噪音源（WS 帧、HTTP 请求、事件循环）默认钉在 WARNING，本模块的
 # TTS/播放/队列调试日志（DEBUG）不受影响；PRESENTER_DEPS_LOG_LEVEL 可放开。
+# httpx2/httpcore2 是 openai SDK 内置 vendored 客户端的日志器名。
 _THIRD_PARTY_LOGGERS = (
     "websockets",
     "websockets.client",
     "websockets.server",
     "httpx",
+    "httpx2",
     "httpcore",
+    "httpcore2",
     "asyncio",
     "urllib3",
 )
