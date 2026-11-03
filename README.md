@@ -80,14 +80,16 @@ godot --path godot/
 
 ## TTS 引擎与降级（ADR-0001）
 
-`PRESENTER_TTS_ENGINE=auto|cosyvoice|audio_cpp`（默认 `auto`）：
+`PRESENTER_TTS_ENGINE=auto|cosyvoice|audio_cpp`（默认 `auto`；**本机部署定为
+`audio_cpp`**：TTS 与 voice-input 的 ASR 都由 audio.cpp@8080 提供）：
 
-- **cosyvoice**（云主用）：DashScope 音色复刻，需 API key 与克隆 voice id。
-- **audio_cpp**（本地兜底）：HTTP 调外部 `audiocpp_server` 的
+- **cosyvoice**（云）：DashScope 音色复刻，需 API key 与克隆 voice id。
+- **audio_cpp**（本地）：HTTP 调外部 `audiocpp_server` 的
   `POST /v1/audio/speech`（SSE 流式 PCM），音色克隆走 `voice_ref` WAV +
-  `reference_text`（留空则 `x_vector_only_mode`）；模型原生 24 kHz 线性重采样到
-  模块统一的 16 kHz。audiocpp_server 是**外部服务**，须自行启动（默认探
-  `127.0.0.1:8081`，8080 被本机嵌入服务占用），宿主只探 `/health`、绝不拉起它。
+  `reference_text`（留空则 `x_vector_only_mode`）；模型原生采样率（audio8_tts
+  44.1 kHz / Qwen3-TTS 24 kHz）线性重采样到模块统一的 16 kHz。audiocpp_server
+  是**外部服务**，须自行启动（本机探 `127.0.0.1:8080`），宿主只探 `/health`、
+  绝不拉起它。
 - **auto**：云为主。某句在**出声前**失败则透明地换另一引擎重试（听感无断档）；
   云连续失败 `PRESENTER_TTS_FALLBACK_AFTER`（默认 3）句后降级为本地优先；降级冷却
   `PRESENTER_TTS_RETRY_AFTER_SECONDS`（默认 60）秒后下一句先回探云端，成功即恢复。

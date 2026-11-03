@@ -5,12 +5,13 @@ shape is app/server/api.md in the local audio.cpp checkout:
 POST /v1/audio/speech with response_format=pcm and stream_format=sse, SSE
 events speech.audio.delta (base64 PCM), speech.audio.done, then [DONE].
 Voice cloning rides on voice_ref (a server-readable WAV path) plus
-reference_text, the documented Qwen3-TTS Base flow; without reference_text the
-request sets options.x_vector_only_mode.
+reference_text, the zero-shot clone flow used by the audio8_tts family;
+without reference_text the request sets options.x_vector_only_mode.
 
-The server streams at the model's native rate (Qwen3-TTS: 24 kHz), so chunks
-are linearly resampled down to the module-wide 16 kHz TtsEngine contract.
-audio.cpp is an external service: the host probes /health but never spawns it.
+The server streams at the model's native rate (audio8_tts: 44.1 kHz,
+Qwen3-TTS: 24 kHz), so chunks are linearly resampled down to the module-wide
+16 kHz TtsEngine contract. audio.cpp is an external service: the host probes
+/health but never spawns it.
 """
 from __future__ import annotations
 

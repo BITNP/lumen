@@ -38,8 +38,8 @@ DEFAULT_TTS_ENGINE: Final = "auto"
 DEFAULT_COSYVOICE_MODEL: Final = "cosyvoice-v3-flash"
 DEFAULT_BRIDGE_PORT: Final = 8790
 DEFAULT_QUEUE_MAX: Final = 64
-# audio.cpp default port; 8080 is intentionally avoided (llama-server holds it).
-DEFAULT_AUDIO_CPP_URL: Final = "http://127.0.0.1:8081"
+# audio.cpp serves both ASR and TTS on this machine at the standard port.
+DEFAULT_AUDIO_CPP_URL: Final = "http://127.0.0.1:8080"
 DEFAULT_AUDIO_CPP_SAMPLE_RATE: Final = 24_000
 DEFAULT_TTS_FALLBACK_AFTER: Final = 3
 DEFAULT_TTS_RETRY_AFTER_SECONDS: Final = 60.0
