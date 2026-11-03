@@ -21,6 +21,7 @@
   可操作元素）。经本机 presentation bridge（`127.0.0.1:PRESENTER_BRIDGE_PORT`
   上的 WebSocket）接收字幕揭示、表情/动作、PPT 指令，上行只有连接握手。
   bridge 协议是模块内部实现，与 waycast 无关。
+  字幕播完后保留在气泡上，直到下一条字幕开始揭示才被替换（轮次结束不清空）。
 
 ## 输出单元 schema（M1）
 

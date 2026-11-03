@@ -68,6 +68,25 @@ def test_two_sentences_play_in_order_then_queue_finished() -> None:
     assert finished["completed_sentences"] == 2
 
 
+def test_subtitle_stays_after_round_ends() -> None:
+    """ADR-0010 表现语义：轮次结束不清空字幕，直到下一条字幕开始替换。"""
+
+    async def scenario() -> RecordingBridge:
+        bridge = RecordingBridge()
+        app = _app(bridge=bridge)
+        assert await app.on_unit({"speech": "播完保留的字幕"}) == ("ok", "queued")
+        await _settled(app)
+        return bridge
+
+    bridge = asyncio.run(scenario())
+    subtitles = [c for c in bridge.commands if c["type"] in ("subtitle_set", "subtitle_clear")]
+    assert subtitles, "sentence playback should drive subtitle messages"
+    assert all(c["type"] == "subtitle_set" for c in subtitles), "round end must not clear the subtitle"
+    final = subtitles[-1]
+    assert final["text"] == "播完保留的字幕"
+    assert final["visible_chars"] == len(final["text"])
+
+
 def test_visual_only_units_finish_without_synthesis() -> None:
     async def scenario() -> RecordingClient:
         app = _app()

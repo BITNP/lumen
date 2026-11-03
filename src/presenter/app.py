@@ -315,9 +315,10 @@ class PresenterApp:
     # -- input frames ---------------------------------------------------------
 
     async def _emit_queue_finished(self, *, interrupted: bool) -> None:
+        # 字幕在轮次结束后保留，直到下一条 subtitle_set 开始揭示才替换
+        # （观众应能继续读完最后一句）；subtitle_clear 仅供 deck 等显式清空场景。
         completed = self._round_completed
         self._round_completed = 0
-        await self._bridge.send({"type": "subtitle_clear"})
         if self._client is None:
             return
         if interrupted:
