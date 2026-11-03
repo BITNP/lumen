@@ -49,6 +49,10 @@ uv run --locked presenter
 godot --path godot/
 ```
 
+排查时设 `PRESENTER_LOG_LEVEL=DEBUG` 可看单元接收、TTS 请求/合成耗时、逐句播放
+完成与轮次结束；websockets/httpx 等依赖日志默认钉在 WARNING，需要时用
+`PRESENTER_DEPS_LOG_LEVEL` 单独放开。
+
 ## 里程碑
 
 - **M1（已完成，真实云合成冒烟待有网络/凭据环境执行）**：capability 握手 → 收单元 →

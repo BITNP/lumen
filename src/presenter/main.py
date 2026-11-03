@@ -19,6 +19,30 @@ from presenter.presentation import GodotSupervisor, PresentationBridge
 
 LOGGER = logging.getLogger("presenter")
 
+LOG_LEVEL_KEY = "PRESENTER_LOG_LEVEL"
+DEPS_LOG_LEVEL_KEY = "PRESENTER_DEPS_LOG_LEVEL"
+# 第三方噪音源（WS 帧、HTTP 请求、事件循环）默认钉在 WARNING，本模块的
+# TTS/播放/队列调试日志（DEBUG）不受影响；PRESENTER_DEPS_LOG_LEVEL 可放开。
+_THIRD_PARTY_LOGGERS = (
+    "websockets",
+    "websockets.client",
+    "websockets.server",
+    "httpx",
+    "httpcore",
+    "asyncio",
+    "urllib3",
+)
+
+
+def configure_logging() -> None:
+    """本模块日志级别走 PRESENTER_LOG_LEVEL（默认 INFO），依赖库走
+    PRESENTER_DEPS_LOG_LEVEL（默认 WARNING）。"""
+    level = os.environ.get(LOG_LEVEL_KEY, "INFO").strip().upper() or "INFO"
+    deps_level = os.environ.get(DEPS_LOG_LEVEL_KEY, "WARNING").strip().upper() or "WARNING"
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    for name in _THIRD_PARTY_LOGGERS:
+        logging.getLogger(name).setLevel(deps_level)
+
 
 async def _run() -> None:
     settings = load_settings()
@@ -59,10 +83,7 @@ async def _run() -> None:
 
 def main() -> None:
     load_dotenv()
-    logging.basicConfig(
-        level=os.environ.get("PRESENTER_LOG_LEVEL", "INFO").upper(),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging()
     try:
         asyncio.run(_run())
     except KeyboardInterrupt:

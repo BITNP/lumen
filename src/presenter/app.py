@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -106,18 +107,40 @@ class _Synth:
     """One sentence synthesized ahead of playback into an async chunk queue."""
 
     def __init__(self, engine: TtsEngine, text: str) -> None:
+        LOGGER.debug("tts request (engine=%s): %r", engine.name, text)
+        self._started_at = time.monotonic()
+        self._first_chunk_at: float | None = None
+        self.total_bytes = 0
         self.chunks: asyncio.Queue[bytes | BaseException | object] = asyncio.Queue()
         self._task = asyncio.create_task(self._pump(engine, text))
 
     async def _pump(self, engine: TtsEngine, text: str) -> None:
         try:
             async for chunk in engine.stream(text):
+                if self._first_chunk_at is None:
+                    self._first_chunk_at = time.monotonic()
+                self.total_bytes += len(chunk)
                 await self.chunks.put(chunk)
         except asyncio.CancelledError:
             await self.chunks.put(asyncio.CancelledError())
             raise
         except Exception as exc:
+            LOGGER.warning(
+                "tts synthesis failed after %.2fs (%s): %s",
+                time.monotonic() - self._started_at,
+                engine.name,
+                exc,
+            )
             await self.chunks.put(exc)
+            return
+        LOGGER.debug(
+            "tts synthesized %d bytes of %s audio in %.2fs (first chunk %.2fs): %r",
+            self.total_bytes,
+            engine.name,
+            time.monotonic() - self._started_at,
+            (self._first_chunk_at or self._started_at) - self._started_at,
+            text,
+        )
         await self.chunks.put(_SYNTH_DONE)
 
     def cancel(self) -> None:
@@ -153,9 +176,11 @@ class PresenterApp:
 
     async def on_unit(self, payload: dict[str, Any]) -> tuple[str, str]:
         """Accept one dispatched unit; return (result status, detail)."""
+        LOGGER.debug("unit accepted from hub: %r", payload)
         try:
             unit = parse_unit(payload)
         except UnitError as exc:
+            LOGGER.warning("invalid output unit rejected: %s", exc)
             return "error", f"invalid output unit: {exc}"
         if unit.is_stop:
             dropped = self._clear_queue()
@@ -168,7 +193,9 @@ class PresenterApp:
         try:
             self._queue.put_nowait(unit)
         except asyncio.QueueFull:
+            LOGGER.warning("expression queue full (%d), unit rejected", self._settings.queue_max)
             return "error", "expression queue full"
+        LOGGER.debug("unit queued (depth=%d/%d)", self._queue.qsize(), self._settings.queue_max)
         if self._worker is None or self._worker.done():
             self._worker = asyncio.create_task(self._run_round())
         return "ok", "queued"
@@ -192,6 +219,7 @@ class PresenterApp:
         self._round_active = True
         self._stop_requested = False
         self._round_completed = 0
+        LOGGER.debug("round worker started (queued=%d)", self._queue.qsize())
         lookahead: ExpressionUnit | None = None
         synth_next: _Synth | None = None
         try:
@@ -287,6 +315,9 @@ class PresenterApp:
         await self._reveal(text, started_at, duration_ms, full=True)
         await self._bridge.send({"type": "speech_state", "active": False})
         self._current_synth = None
+        LOGGER.info(
+            "sentence fully played (%.1fs audio): %r", total_bytes / BYTES_PER_SECOND, text
+        )
 
     async def _reveal(self, text: str, started_at: float, duration_ms: int, *, full: bool = False) -> None:
         elapsed_ms = int(max(0.0, self._player.written_seconds - started_at) * 1000)
@@ -319,6 +350,7 @@ class PresenterApp:
         # （观众应能继续读完最后一句）；subtitle_clear 仅供 deck 等显式清空场景。
         completed = self._round_completed
         self._round_completed = 0
+        LOGGER.info("round finished (sentences=%d, interrupted=%s)", completed, interrupted)
         if self._client is None:
             return
         if interrupted:
