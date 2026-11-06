@@ -72,9 +72,10 @@ godot --path godot/
   `queue_finished`，失败以异步 error result 回报且不断句。`PRESENTER_DECKS_DIR` 指定根目录。
 - **M4（已完成，真实合成冒烟待模型下载后在有服务的环境执行）**：audio.cpp 本地兜底
   TTS + 自动降级（ADR-0001），详见下节。
-- **M5（已完成，真实讲解冒烟待有服务的环境执行）**：逐页讲稿（ADR-0006）。manifest
-  1.1.0 为每页携带讲稿（pdftotext 自动抽取 + `--scripts` 覆盖），当前页讲稿随
-  `queue_finished` 与 status 送达无视觉的核心 Agent，让它能"看着页讲"。
+- **M5（已完成，真实讲解冒烟待有服务的环境执行）**：逐页文本进 deck（ADR-0006/0007）。
+  manifest 1.2.0 为每页携带**页面内容**（pdftotext 抽取，可覆盖）与**建议讲稿**
+  （`--scripts` 撰写），两者随 `queue_finished` 与 status 送达无视觉的核心 Agent，
+  让它能"看着页讲"，且人工定制讲稿与内容描述互不干扰。
 
 ## 舞台视觉
 
@@ -111,7 +112,7 @@ godot --path godot/
 
 ```sh
 uv run --locked python tools/prepare_deck.py 讲义.pptx --name lecture1 --out decks
-# 只导出部分页，并用人工/视觉模型撰写的逐页讲稿覆盖自动抽取结果：
+# 只导出部分页，并用人工/视觉模型撰写的逐页文本覆盖自动抽取结果：
 uv run --locked python tools/prepare_deck.py ../main.pdf --name main-intro --out decks \
     --last 20 --scripts tools/deck-scripts/main-intro.json --force
 ```
@@ -121,13 +122,20 @@ uv run --locked python tools/prepare_deck.py ../main.pdf --name main-intro --out
 翻页只由 Agent 的 `ppt` 指令驱动，窗口不接收任何点击操作（ADR-0004/0005）。
 
 核心 Agent 的模型**没有视觉**，看不到页面内容，所以 manifest（schema
-1.1.0）为每页携带一段**讲稿**（ADR-0006）：默认用 pdftotext 抽取 PDF 文本层
-生成，含 Beamer 页脚等噪声或纯图页建议用 `--scripts <json>`（页码→文本的
-JSON，人工或视觉模型撰写）覆盖，示例见
+1.2.0）为每页携带两段文本（ADR-0006/0007），随 `queue_finished` 的 input
+内容与 status 的 `page_summary`/`page_script` 送达 Agent：
+
+- **页面内容（summaries）**：忠实描述这页展示什么（标题、条目、图表、当前
+  overlay 状态）——默认用 pdftotext 抽取 PDF 文本层生成，扫描件或噪声大的
+  deck 用视觉模型/人工重写。
+- **建议讲稿（scripts）**：建议怎么讲这页（开场、语气、停顿、展开方式），只由
+  人工或视觉模型撰写，供自由定制与注入特定指令，改讲法不会碰着内容事实。
+
+`--scripts <json>` 的每页值是字符串（只给讲稿）或
+`{"summary": "…", "script": "…"}` 对象（两段都给）。示例见
 [`tools/deck-scripts/main-intro.json`](tools/deck-scripts/main-intro.json)
-（main.pdf 前 20 页测试 deck）。当前页讲稿随 `queue_finished` 的 input 内容与
-status 的 `page_script` 送达 Agent，让它知道"这页画了什么、该讲什么"，据此
-推进翻页与讲解。
+（main.pdf 前 20 页测试 deck，人工对照渲染页逐页撰写，覆盖 Beamer overlay
+渐进页与页脚噪声）。
 
 ## 测试
 

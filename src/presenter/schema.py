@@ -96,16 +96,17 @@ CAPABILITY_OUTPUT_DESCRIPTION: Final = (
     "sentences. Accepting a unit only means "
     "queued: when the whole dispatched list has finished playing, a queue_finished "
     "input frame arrives carrying a summary including the current slide page's "
-    "speaker script; use status_presenter to check "
+    "content description and suggested speaker script; use status_presenter to check "
     "playback progress, current PPT deck/page or the active TTS engine at any time."
 )
 
 CAPABILITY_INPUT_DESCRIPTION: Final = (
     "queue_finished only (ADR-0005): the last dispatched expression finished "
     "playing; the input content says how many sentences completed and which PPT "
-    "page is showing, plus that page's speaker script (讲稿) so a vision-less "
-    "Agent knows what the displayed slide says and can keep teaching it; an "
-    "interrupted variant reports the queue was cleared. This is the module's "
+    "page is showing, plus that page's content description (本页内容) and "
+    "suggested speaker script (建议讲稿) so a vision-less Agent sees what the "
+    "slide displays and how to teach it; an interrupted variant reports the "
+    "queue was cleared. This is the module's "
     "sole input frame - the frontend screen is a pure display surface with no "
     "user-operable elements - and it is the heartbeat that lets her advance the "
     "presentation and decide the next step."
@@ -115,7 +116,8 @@ CAPABILITY_STATUS_DESCRIPTION: Final = (
     "live presentation state: tts_engine (active engine), playing, queue_depth, "
     "completed_sentences (current round), presentation_available (Godot window "
     "connected), deck/page/total_pages (current PPT state, null when closed), "
-    "page_script (speaker script of the shown page, null when none)"
+    "page_summary (what the shown slide displays) and page_script (suggested "
+    "speaker script), both null when the deck carries none"
 )
 
 __all__ = [

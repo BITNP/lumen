@@ -74,13 +74,18 @@ def test_unknown_or_unsafe_deck(root: Path) -> None:
 
 def test_manifest_rejections(tmp_path: Path) -> None:
     def manifest_case(
-        pages_value: object, version: str = "1.0.0", scripts_value: object = None
+        pages_value: object,
+        version: str = "1.0.0",
+        scripts_value: object = None,
+        summaries_value: object = None,
     ) -> Path:
         directory = tmp_path / "case"
         directory.mkdir(exist_ok=True)
         manifest: dict[str, object] = {"schema_version": version, "pages": pages_value}
         if scripts_value is not None:
             manifest["scripts"] = scripts_value
+        if summaries_value is not None:
+            manifest["summaries"] = summaries_value
         (directory / "manifest.json").write_text(
             json.dumps(manifest), encoding="utf-8"
         )
@@ -106,22 +111,51 @@ def test_manifest_rejections(tmp_path: Path) -> None:
     )
     with pytest.raises(DeckError, match="scripts list"):
         manager.apply(_ppt("open_deck", deck="case"))
+    manager = DeckManager(
+        manifest_case(["001.png"], version="1.2.0", summaries_value=["a", "b"])
+    )
+    with pytest.raises(DeckError, match="summaries list"):
+        manager.apply(_ppt("open_deck", deck="case"))
+    manager = DeckManager(
+        manifest_case(["001.png"], version="1.2.0", summaries_value=[42])
+    )
+    with pytest.raises(DeckError, match="summaries list"):
+        manager.apply(_ppt("open_deck", deck="case"))
 
 
-def test_scripts_follow_the_shown_page(tmp_path: Path) -> None:
-    """ADR-0006: the snapshot always carries the current page's script."""
-    root = write_deck(tmp_path, "scripted", pages=3, scripts=["第一页讲稿", "  ", "第三页讲稿"])
+def test_scripts_and_summaries_follow_the_shown_page(tmp_path: Path) -> None:
+    """ADR-0006/0007: the snapshot carries the current page's script and summary."""
+    root = write_deck(
+        tmp_path,
+        "scripted",
+        pages=3,
+        scripts=["第一页讲稿", "  ", "第三页讲稿"],
+        summaries=["第一页内容", "第二页内容", ""],
+    )
     manager = DeckManager(root)
     manager.apply(_ppt("open_deck", deck="scripted"))
-    assert manager.snapshot().script == "第一页讲稿"
+    assert (manager.snapshot().script, manager.snapshot().summary) == (
+        "第一页讲稿",
+        "第一页内容",
+    )
     manager.apply(_ppt("next"))
-    assert manager.snapshot().script is None, "blank scripts surface as None"
+    snapshot = manager.snapshot()
+    assert snapshot.script is None, "blank scripts surface as None"
+    assert snapshot.summary == "第二页内容"
     manager.apply(_ppt("next"))
-    assert manager.snapshot().script == "第三页讲稿"
-    manager.apply(_ppt("prev"))
-    assert manager.snapshot().script is None
+    snapshot = manager.snapshot()
+    assert (snapshot.script, snapshot.summary) == ("第三页讲稿", None)
     manager.apply(_ppt("close"))
-    assert manager.snapshot().script is None
+    assert (manager.snapshot().script, manager.snapshot().summary) == (None, None)
+
+
+def test_v110_deck_without_summaries_still_reads(tmp_path: Path) -> None:
+    """1.1.0（只有讲稿）继续可读；summary 为空。"""
+    root = write_deck(tmp_path, "old", pages=2, scripts=["甲", "乙"])
+    manager = DeckManager(root)
+    manager.apply(_ppt("open_deck", deck="old"))
+    assert manager.snapshot().script == "甲"
+    assert manager.snapshot().summary is None
 
 
 def test_page_file_must_be_a_bounded_png(tmp_path: Path) -> None:

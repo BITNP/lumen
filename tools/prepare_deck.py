@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
-"""Prepare a slide deck for the presenter: PPT/PPTX/PDF -> per-page PNG + script + manifest.
+"""Prepare a slide deck for the presenter: PPT/PPTX/PDF -> per-page PNG + texts + manifest.
 
 Run inside the repo environment (needs the presenter package for the shared
 bounds, plus system tools soffice and pdftoppm; pdftotext is optional and only
-needed for automatic script extraction):
+needed for automatic page-summary extraction):
 
     uv run --locked python tools/prepare_deck.py slides.pptx [--name intro]
         [--out decks] [--dpi 120] [--first 1] [--last 20]
         [--scripts scripts.json] [--no-scripts] [--force]
 
-Produces <out>/<name>/001.png … NNN.png plus manifest.json: per-page speaker
-scripts (讲稿, ADR-0006) are extracted from the PDF text layer with pdftotext
-and can be replaced by hand- or vision-model-written text via --scripts (a
-JSON list aligned with pages, or a {"1": "…"} mapping of 1-based pages).
-Manifest schema_version is "1.1.0" with scripts, "1.0.0" without.  The Agent
-opens the result with the ppt unit field {"action":"open_deck","deck":"<name>"}
-and receives each page's script on queue_finished.
+Produces <out>/<name>/001.png … NNN.png plus manifest.json carrying two
+per-page texts (ADR-0006/0007): the page summary (页面内容: what the slide
+shows, extracted from the PDF text layer with pdftotext, or replaced by
+hand/vision-model text via the "summary" key) and the suggested speaker
+script (建议讲稿: how to teach the page, authored via the "script" key or a
+plain string).  --scripts is a JSON list aligned with pages, or a {"1": …}
+mapping of 1-based pages; each value is a string (script only) or a
+{"summary": "…", "script": "…"} object.  Manifest schema_version: "1.2.0"
+with summaries, "1.1.0" scripts-only, "1.0.0" without texts.  The Agent opens
+the result with {"action":"open_deck","deck":"<name>"} and receives both texts
+on every queue_finished.
 """
 from __future__ import annotations
 
@@ -35,7 +39,6 @@ from presenter.decks import (
     MAX_PAGES,
     MAX_SCRIPT_CHARS,
     SAFE_DECK_ID,
-    SCHEMA_VERSION,
 )
 
 OFFICE_SUFFIXES = {".pptx", ".ppt", ".odp", ".pdf"}
@@ -52,11 +55,14 @@ def main() -> int:
     parser.add_argument(
         "--scripts",
         type=Path,
-        help="JSON file of per-page speaker scripts overriding the extracted text "
-        "(a list aligned with pages, or a {\"1\": \"…\"} page mapping)",
+        help="JSON file of per-page texts: a list aligned with pages or a "
+        "{\"1\": …} page map; each value is a string (suggested script) or a "
+        "{\"summary\": \"…\", \"script\": \"…\"} object (ADR-0007)",
     )
     parser.add_argument(
-        "--no-scripts", action="store_true", help="skip text extraction; write a 1.0.0 manifest"
+        "--no-scripts",
+        action="store_true",
+        help="skip pdftotext summary extraction and --scripts merging",
     )
     parser.add_argument("--force", action="store_true", help="replace an existing deck")
     args = parser.parse_args()
@@ -83,15 +89,18 @@ def main() -> int:
         pdf = to_pdf(source, Path(tmp)) if suffix != ".pdf" else source
         pages = render_pages(pdf, Path(tmp), dpi=args.dpi, first=args.first, last=args.last)
         validate_pages(pages)
+        summaries: list[str] = []
         scripts: list[str] = []
         if not args.no_scripts:
-            scripts = extract_scripts(pdf, first=args.first, count=len(pages))
-        if args.scripts is not None:
-            scripts = apply_script_overrides(scripts, args.scripts, count=len(pages))
-        if any(scripts):
-            empty = sum(1 for script in scripts if not script)
-            if empty:
-                print(f"note: {empty} page(s) have no script text; "
+            summaries = extract_summaries(pdf, first=args.first, count=len(pages))
+            if args.scripts is not None:
+                summaries, scripts = apply_script_overrides(
+                    summaries, args.scripts, count=len(pages)
+                )
+        if summaries or scripts:
+            missing = sum(1 for text in summaries if not text)
+            if missing:
+                print(f"note: {missing} page(s) have no summary text; "
                       "consider --scripts for decks without a usable text layer")
         target.mkdir(parents=True)
         manifest_pages = []
@@ -100,23 +109,32 @@ def main() -> int:
             shutil.move(str(page), target / page_name)
             manifest_pages.append(page_name)
         manifest: dict[str, object] = {
-            "schema_version": SCHEMA_VERSION if any(scripts) else "1.0.0",
+            "schema_version": (
+                "1.2.0" if any(summaries) else "1.1.0" if any(scripts) else "1.0.0"
+            ),
             "title": source.stem,
             "total_pages": len(manifest_pages),
             "pages": manifest_pages,
         }
         if any(scripts):
             manifest["scripts"] = scripts
+        if any(summaries):
+            manifest["summaries"] = summaries
         rendered = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
         if len(rendered.encode("utf-8")) > MAX_MANIFEST_BYTES:
             shutil.rmtree(target)
             return fail(
                 f"manifest is {len(rendered.encode('utf-8'))} bytes, over the "
-                f"{MAX_MANIFEST_BYTES} limit; shorten scripts or export fewer pages"
+                f"{MAX_MANIFEST_BYTES} limit; shorten texts or export fewer pages"
             )
         (target / "manifest.json").write_text(rendered, encoding="utf-8")
-    script_note = f", {sum(1 for s in scripts if s)} script(s)" if any(scripts) else ""
-    print(f"deck {name}: {len(manifest_pages)} page(s){script_note} -> {target}")
+    notes = []
+    if any(summaries):
+        notes.append(f"{sum(1 for s in summaries if s)} summary(ies)")
+    if any(scripts):
+        notes.append(f"{sum(1 for s in scripts if s)} script(s)")
+    text_note = f", {(' + '.join(notes))}" if notes else ""
+    print(f"deck {name}: {len(manifest_pages)} page(s){text_note} -> {target}")
     return 0
 
 
@@ -171,10 +189,10 @@ def render_pages(pdf: Path, workdir: Path, *, dpi: int, first: int, last: int) -
     return pages
 
 
-def extract_scripts(pdf: Path, *, first: int, count: int) -> list[str]:
+def extract_summaries(pdf: Path, *, first: int, count: int) -> list[str]:
     """Per-page text layer via pdftotext (form-feed separated); [] if unavailable."""
     if shutil.which("pdftotext") is None:
-        print("note: pdftotext not found; deck will have no scripts "
+        print("note: pdftotext not found; deck will have no summaries "
               "(install poppler-utils or pass --scripts)")
         return []
     result = subprocess.run(
@@ -184,40 +202,61 @@ def extract_scripts(pdf: Path, *, first: int, count: int) -> list[str]:
         timeout=300,
     )
     if result.returncode != 0:
-        print("note: pdftotext failed; deck will have no scripts (pass --scripts instead)")
+        print("note: pdftotext failed; deck will have no summaries (pass --scripts instead)")
         return []
     chunks = result.stdout.decode("utf-8", "replace").split("\f")
-    scripts = [normalize_script(chunk) for chunk in chunks[:count]]
-    return scripts + [""] * (count - len(scripts))  # shorter PDF still aligns
+    summaries = [normalize_page_text(chunk) for chunk in chunks[:count]]
+    return summaries + [""] * (count - len(summaries))  # shorter PDF still aligns
 
 
-def apply_script_overrides(scripts: list[str], path: Path, *, count: int) -> list[str]:
-    """Merge a --scripts JSON file (list aligned with pages, or {page: text} map)."""
+def apply_script_overrides(
+    summaries: list[str], path: Path, *, count: int
+) -> tuple[list[str], list[str]]:
+    """Merge a --scripts JSON file into summaries; return (summaries, scripts).
+
+    Each page value is a string (suggested script only) or a
+    ``{"summary": …, "script": …}`` object (ADR-0007); absent keys keep the
+    pdftotext summary or an empty script.
+    """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"--scripts file unreadable: {exc}")
-    merged = list(scripts) + [""] * max(0, count - len(scripts))
+    merged_summaries = list(summaries) + [""] * max(0, count - len(summaries))
+    scripts = [""] * count
+
+    def assign(page: int, value: object) -> None:
+        if isinstance(value, str):
+            scripts[page - 1] = normalize_page_text(value)
+        elif isinstance(value, dict):
+            unknown = set(value) - {"summary", "script"}
+            if unknown:
+                raise SystemExit(f"--scripts page {page} has unknown keys: {sorted(unknown)}")
+            for key, target in (("summary", merged_summaries), ("script", scripts)):
+                if key in value:
+                    text = value[key]
+                    if not isinstance(text, str):
+                        raise SystemExit(f"--scripts page {page} {key} is not a string")
+                    target[page - 1] = normalize_page_text(text)
+        else:
+            raise SystemExit(f"--scripts page {page} value is not a string or object")
+
     if isinstance(data, list):
         if len(data) != count:
             raise SystemExit(f"--scripts list has {len(data)} entries, deck has {count} pages")
-        for index, value in enumerate(data):
-            if not isinstance(value, str):
-                raise SystemExit(f"--scripts entry {index + 1} is not a string")
-            merged[index] = normalize_script(value)
+        for index, value in enumerate(data, start=1):
+            assign(index, value)
     elif isinstance(data, dict):
         for key, value in data.items():
             if not str(key).isdigit() or not 1 <= int(key) <= count:
                 raise SystemExit(f"--scripts page key {key!r} outside 1..{count}")
-            if not isinstance(value, str):
-                raise SystemExit(f"--scripts page {key} value is not a string")
-            merged[int(key) - 1] = normalize_script(value)
+            assign(int(key), value)
     else:
         raise SystemExit("--scripts file must be a JSON list or object")
-    return merged[:count]
+    return merged_summaries[:count], scripts
 
 
-def normalize_script(text: str) -> str:
+def normalize_page_text(text: str) -> str:
     """Collapse whitespace, cap at MAX_SCRIPT_CHARS (manifest bound ADR-0006)."""
     collapsed = re.sub(r"[ \t\r\f\v]+", " ", text)
     collapsed = re.sub(r" ?\n ?", "\n", collapsed)

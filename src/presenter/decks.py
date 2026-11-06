@@ -1,16 +1,18 @@
 """Deck state machine: pre-exported PNG page decks for the ppt unit field.
 
 A deck is a directory under PRESENTER_DECKS_DIR prepared by
-tools/prepare_deck.py: manifest.json (schema_version "1.1.0", or "1.0.0"
-without scripts) plus per-page PNG files.  The manifest's optional ``scripts``
-list holds one plain-text speaker script (讲稿) per page (ADR-0006): the
-vision-less core Agent learns what a page says from the queue_finished input
-content and status, both fed from the script of the currently shown page.
-The manager validates strictly (bounds mirror the old frontend's hardened
-reader), applies ppt commands from expression units, keeps the current
-deck/page state for status queries, and returns the bridge command that shows
-or hides a slide.  Every failure raises DeckError; the caller reports it as an
-async error result without breaking the speech pipeline.
+tools/prepare_deck.py: manifest.json (schema_version "1.2.0", or the older
+"1.0.0"/"1.1.0") plus per-page PNG files.  The manifest's optional ``scripts``
+and ``summaries`` lists hold, per page, a suggested speaker script (建议讲稿)
+and a plain-text description of what the slide shows (页面内容) (ADR-0006,
+ADR-0007): the vision-less core Agent learns what a page says and how to
+teach it from the queue_finished input content and status, both fed from the
+currently shown page.  The manager validates strictly (bounds mirror the old
+frontend's hardened reader), applies ppt commands from expression units,
+keeps the current deck/page state for status queries, and returns the bridge
+command that shows or hides a slide.  Every failure raises DeckError; the
+caller reports it as an async error result without breaking the speech
+pipeline.
 """
 from __future__ import annotations
 
@@ -27,12 +29,12 @@ LOGGER = logging.getLogger(__name__)
 
 MAX_PAGES = 200
 MAX_PAGE_BYTES = 8 * 1024 * 1024
-MAX_MANIFEST_BYTES = 512 * 1024  # v1.1.0 manifests carry one script per page
+MAX_MANIFEST_BYTES = 512 * 1024  # v1.2.0 manifests carry two texts per page
 MAX_DIMENSION = 4096
 MAX_SCRIPT_CHARS = 4000
-SCHEMA_VERSION = "1.1.0"
-# "1.0.0" decks (PNG-only manifests) stay readable; "1.1.0" adds scripts.
-SUPPORTED_SCHEMA_VERSIONS = frozenset({"1.0.0", SCHEMA_VERSION})
+SCHEMA_VERSION = "1.2.0"
+# "1.0.0" = PNG-only, "1.1.0" = scripts, "1.2.0" = scripts + summaries (ADR-0007).
+SUPPORTED_SCHEMA_VERSIONS = frozenset({"1.0.0", "1.1.0", SCHEMA_VERSION})
 
 SAFE_DECK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _PAGE_NAME = re.compile(r"^[0-9]{1,3}\.png$")
@@ -48,7 +50,8 @@ class DeckSnapshot:
     deck: str | None
     page: int | None
     total_pages: int | None
-    script: str | None = None  # speaker script of the shown page (ADR-0006)
+    script: str | None = None  # suggested speaker script of the shown page
+    summary: str | None = None  # what the shown slide displays (ADR-0007)
 
 
 class DeckManager:
@@ -59,18 +62,25 @@ class DeckManager:
         self._deck: str | None = None
         self._pages: list[str] = []
         self._scripts: list[str] = []
+        self._summaries: list[str] = []
         self._page = 0
 
     def snapshot(self) -> DeckSnapshot:
         if self._deck is None:
-            return DeckSnapshot(None, None, None, None)
-        script = self._scripts[self._page - 1] if self._scripts else ""
-        return DeckSnapshot(self._deck, self._page, len(self._pages), script or None)
+            return DeckSnapshot(None, None, None, None, None)
+        return DeckSnapshot(
+            self._deck,
+            self._page,
+            len(self._pages),
+            (self._scripts[self._page - 1] or None) if self._scripts else None,
+            (self._summaries[self._page - 1] or None) if self._summaries else None,
+        )
 
     def apply(self, command: PptCommand) -> dict[str, Any]:
         """Apply one ppt command; return the bridge command to execute it."""
         if command.action == "close":
-            self._deck, self._pages, self._scripts, self._page = None, [], [], 0
+            self._deck, self._pages, self._page = None, [], 0
+            self._scripts, self._summaries = [], []
             return {"type": "ppt", "action": "hide"}
         if command.action == "open_deck":
             return self._open(command.deck or "")
@@ -101,9 +111,10 @@ class DeckManager:
         if not SAFE_DECK_ID.match(deck):
             raise DeckError(f"unsafe deck name: {deck!r}")
         directory = self._root / deck
-        pages, scripts = _read_manifest(directory / "manifest.json")
+        pages, scripts, summaries = _read_manifest(directory / "manifest.json")
         page_path = self._validated_page(deck, pages[0])
-        self._deck, self._pages, self._scripts, self._page = deck, pages, scripts, 1
+        self._deck, self._pages = deck, pages
+        self._scripts, self._summaries, self._page = scripts, summaries, 1
         LOGGER.info("deck %s opened (%d pages)", deck, len(pages))
         return self._show(deck, 1, page_path)
 
@@ -136,8 +147,8 @@ class DeckManager:
         }
 
 
-def _read_manifest(path: Path) -> tuple[list[str], list[str]]:
-    """Return (page names, per-page scripts); scripts is [] when absent."""
+def _read_manifest(path: Path) -> tuple[list[str], list[str], list[str]]:
+    """Return (page names, per-page scripts, per-page summaries); [] when absent."""
     try:
         raw = path.read_bytes()
     except OSError as exc:
@@ -166,17 +177,23 @@ def _read_manifest(path: Path) -> tuple[list[str], list[str]]:
         pages.append(item)
     if len(set(pages)) != len(pages):
         raise DeckError("deck manifest pages list is invalid")
-    scripts: list[str] = []
-    raw_scripts = manifest.get("scripts")
-    if raw_scripts is not None:
-        if not isinstance(raw_scripts, list) or len(raw_scripts) != len(pages):
-            raise DeckError("deck manifest scripts list is invalid")
-        script_entries = cast("list[object]", raw_scripts)
-        for item in script_entries:
-            if not isinstance(item, str) or len(item) > MAX_SCRIPT_CHARS:
-                raise DeckError("deck manifest scripts list is invalid")
-            scripts.append(item.strip())
-    return pages, scripts
+    return pages, _text_list(manifest, "scripts", pages), _text_list(manifest, "summaries", pages)
+
+
+def _text_list(manifest: dict[str, Any], key: str, pages: list[str]) -> list[str]:
+    """Validate one optional per-page text list aligned with pages; [] when absent."""
+    raw = manifest.get(key)
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) != len(pages):
+        raise DeckError(f"deck manifest {key} list is invalid")
+    entries = cast("list[object]", raw)
+    texts: list[str] = []
+    for item in entries:
+        if not isinstance(item, str) or len(item) > MAX_SCRIPT_CHARS:
+            raise DeckError(f"deck manifest {key} list is invalid")
+        texts.append(item.strip())
+    return texts
 
 
 __all__ = [

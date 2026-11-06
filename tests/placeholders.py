@@ -12,7 +12,6 @@ import zlib
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from presenter.decks import SCHEMA_VERSION
 from presenter.playback import PlayerSink
 from presenter.presentation import PresentationBridge
 from presenter.tts import TtsError
@@ -140,7 +139,11 @@ class ScriptedEngine:
 
 
 def write_deck(
-    root: Path, name: str = "demo", pages: int = 3, scripts: list[str] | None = None
+    root: Path,
+    name: str = "demo",
+    pages: int = 3,
+    scripts: list[str] | None = None,
+    summaries: list[str] | None = None,
 ) -> Path:
     """Write a valid prepared deck (manifest + real PNG pages) under root."""
     directory = root / name
@@ -149,13 +152,17 @@ def write_deck(
     for page_name in page_names:
         (directory / page_name).write_bytes(make_png())
     manifest = {
-        "schema_version": SCHEMA_VERSION if scripts else "1.0.0",
+        "schema_version": (
+            "1.2.0" if summaries else "1.1.0" if scripts else "1.0.0"
+        ),
         "title": name,
         "total_pages": pages,
         "pages": page_names,
     }
     if scripts:
         manifest["scripts"] = scripts
+    if summaries:
+        manifest["summaries"] = summaries
     (directory / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
     )

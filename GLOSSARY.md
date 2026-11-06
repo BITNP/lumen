@@ -44,11 +44,13 @@ _Avoid_: 卡拉OK对齐（viseme/音素级对齐不是本方案）
 
 **deck**:
 一套预导出为逐页 PNG 的讲解材料，按名切换；PPT 的显示与翻页执行都在本模块内。
-manifest（schema 1.1.0）为每页携带一段**讲稿**。
+manifest（schema 1.2.0）为每页携带**页面内容**与**建议讲稿**两段文本。
 _Avoid_: PPT 模块（不存在独立 PPT 模块）、slides 目录（口语）
 
-**讲稿 (speaker script)**:
-deck manifest 中与逐页 PNG 一一对应的纯文本页说明：描述这页画了什么、该讲什么
-（ADR-0006）。prepare 时用 pdftotext 抽取 PDF 文本层生成，可被 `--scripts` 提供
-的人工/视觉模型文本覆盖；经 queue_finished 与 status 送达无视觉的核心 Agent。
+**讲稿与页面内容 (speaker script / page summary)**:
+deck manifest 中与逐页 PNG 一一对应的两段纯文本（ADR-0006/0007）：**页面内容**
+忠实描述这页展示什么（Agent 的"眼睛"，pdftotext 抽取文本层生成，可被视觉模型
+或人工描述覆盖）；**建议讲稿**建议怎么讲这页（开场、语气、展开方式，供人工自
+定义与注入特定指令，自动抽取不填充）。二者随 queue_finished 与 status 送达无
+视觉的核心 Agent，分层互不踩踏。
 _Avoid_: 备注（含糊）、字幕（是播放中的 speech 揭示文本，不是讲稿）
