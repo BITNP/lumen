@@ -189,9 +189,11 @@ def _text_list(manifest: dict[str, Any], key: str, pages: list[str]) -> list[str
     raw = manifest.get(key)
     if raw is None:
         return []
-    if not isinstance(raw, list) or len(raw) != len(pages):
+    if not isinstance(raw, list):
         raise DeckError(f"deck manifest {key} list is invalid")
     entries = cast("list[object]", raw)
+    if len(entries) != len(pages):
+        raise DeckError(f"deck manifest {key} list is invalid")
     texts: list[str] = []
     for item in entries:
         if not isinstance(item, str) or len(item) > MAX_SCRIPT_CHARS:
