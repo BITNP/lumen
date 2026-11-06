@@ -73,11 +73,16 @@ def test_unknown_or_unsafe_deck(root: Path) -> None:
 
 
 def test_manifest_rejections(tmp_path: Path) -> None:
-    def manifest_case(pages_value: object, version: str = "1.0.0") -> Path:
+    def manifest_case(
+        pages_value: object, version: str = "1.0.0", scripts_value: object = None
+    ) -> Path:
         directory = tmp_path / "case"
         directory.mkdir(exist_ok=True)
+        manifest: dict[str, object] = {"schema_version": version, "pages": pages_value}
+        if scripts_value is not None:
+            manifest["scripts"] = scripts_value
         (directory / "manifest.json").write_text(
-            json.dumps({"schema_version": version, "pages": pages_value}), encoding="utf-8"
+            json.dumps(manifest), encoding="utf-8"
         )
         return tmp_path
 
@@ -90,6 +95,33 @@ def test_manifest_rejections(tmp_path: Path) -> None:
     manager = DeckManager(manifest_case([f"{i:03d}.png" for i in range(1, 202)]))
     with pytest.raises(DeckError, match="pages list"):
         manager.apply(_ppt("open_deck", deck="case"))
+    manager = DeckManager(manifest_case(["001.png"], version="1.1.0", scripts_value=["a", "b"]))
+    with pytest.raises(DeckError, match="scripts list"):
+        manager.apply(_ppt("open_deck", deck="case"))
+    manager = DeckManager(manifest_case(["001.png"], version="1.1.0", scripts_value=[42]))
+    with pytest.raises(DeckError, match="scripts list"):
+        manager.apply(_ppt("open_deck", deck="case"))
+    manager = DeckManager(
+        manifest_case(["001.png"], version="1.1.0", scripts_value=["讲稿" * 2001])
+    )
+    with pytest.raises(DeckError, match="scripts list"):
+        manager.apply(_ppt("open_deck", deck="case"))
+
+
+def test_scripts_follow_the_shown_page(tmp_path: Path) -> None:
+    """ADR-0006: the snapshot always carries the current page's script."""
+    root = write_deck(tmp_path, "scripted", pages=3, scripts=["第一页讲稿", "  ", "第三页讲稿"])
+    manager = DeckManager(root)
+    manager.apply(_ppt("open_deck", deck="scripted"))
+    assert manager.snapshot().script == "第一页讲稿"
+    manager.apply(_ppt("next"))
+    assert manager.snapshot().script is None, "blank scripts surface as None"
+    manager.apply(_ppt("next"))
+    assert manager.snapshot().script == "第三页讲稿"
+    manager.apply(_ppt("prev"))
+    assert manager.snapshot().script is None
+    manager.apply(_ppt("close"))
+    assert manager.snapshot().script is None
 
 
 def test_page_file_must_be_a_bounded_png(tmp_path: Path) -> None:

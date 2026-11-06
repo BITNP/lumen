@@ -66,12 +66,15 @@ godot --path godot/
   （bridge `speech_state` 消息）；空闲呼吸/眨眼/头部微动为本地程序化动画。形象置于
   手设计舞台布局的待机位（见下节"舞台视觉"）。
 - **M3（已完成）**：PPT 显示与翻页。deck 预先用 `tools/prepare_deck.py` 导出为逐页 PNG
-  （soffice + pdftoppm，含 manifest 校验）；Agent 在单元的 `ppt` 字段携带
+  （soffice + pdftoppm，含 manifest 校验，支持 `--first/--last` 页范围）；Agent 在单元的 `ppt` 字段携带
   `open_deck/goto/next/prev/close` 指令，随句按序执行；开片/收片播放舞台联动动画
   （见下节"舞台视觉"）；deck 状态进 status 与
   `queue_finished`，失败以异步 error result 回报且不断句。`PRESENTER_DECKS_DIR` 指定根目录。
 - **M4（已完成，真实合成冒烟待模型下载后在有服务的环境执行）**：audio.cpp 本地兜底
   TTS + 自动降级（ADR-0001），详见下节。
+- **M5（已完成，真实讲解冒烟待有服务的环境执行）**：逐页讲稿（ADR-0006）。manifest
+  1.1.0 为每页携带讲稿（pdftotext 自动抽取 + `--scripts` 覆盖），当前页讲稿随
+  `queue_finished` 与 status 送达无视觉的核心 Agent，让它能"看着页讲"。
 
 ## 舞台视觉
 
@@ -108,11 +111,23 @@ godot --path godot/
 
 ```sh
 uv run --locked python tools/prepare_deck.py 讲义.pptx --name lecture1 --out decks
+# 只导出部分页，并用人工/视觉模型撰写的逐页讲稿覆盖自动抽取结果：
+uv run --locked python tools/prepare_deck.py ../main.pdf --name main-intro --out decks \
+    --last 20 --scripts tools/deck-scripts/main-intro.json --force
 ```
 
 生成 `decks/lecture1/001.png…` 与 `manifest.json`，Agent 即可
 `{"ppt": {"action": "open_deck", "deck": "lecture1"}}` 打开。前端是纯展示面：
 翻页只由 Agent 的 `ppt` 指令驱动，窗口不接收任何点击操作（ADR-0004/0005）。
+
+核心 Agent 的模型**没有视觉**，看不到页面内容，所以 manifest（schema
+1.1.0）为每页携带一段**讲稿**（ADR-0006）：默认用 pdftotext 抽取 PDF 文本层
+生成，含 Beamer 页脚等噪声或纯图页建议用 `--scripts <json>`（页码→文本的
+JSON，人工或视觉模型撰写）覆盖，示例见
+[`tools/deck-scripts/main-intro.json`](tools/deck-scripts/main-intro.json)
+（main.pdf 前 20 页测试 deck）。当前页讲稿随 `queue_finished` 的 input 内容与
+status 的 `page_script` 送达 Agent，让它知道"这页画了什么、该讲什么"，据此
+推进翻页与讲解。
 
 ## 测试
 

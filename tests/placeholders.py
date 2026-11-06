@@ -139,7 +139,9 @@ class ScriptedEngine:
             raise TtsError(f"{self.name} dropped mid-stream")
 
 
-def write_deck(root: Path, name: str = "demo", pages: int = 3) -> Path:
+def write_deck(
+    root: Path, name: str = "demo", pages: int = 3, scripts: list[str] | None = None
+) -> Path:
     """Write a valid prepared deck (manifest + real PNG pages) under root."""
     directory = root / name
     directory.mkdir(parents=True)
@@ -147,11 +149,13 @@ def write_deck(root: Path, name: str = "demo", pages: int = 3) -> Path:
     for page_name in page_names:
         (directory / page_name).write_bytes(make_png())
     manifest = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": SCHEMA_VERSION if scripts else "1.0.0",
         "title": name,
         "total_pages": pages,
         "pages": page_names,
     }
+    if scripts:
+        manifest["scripts"] = scripts
     (directory / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
     )

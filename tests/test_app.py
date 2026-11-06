@@ -177,6 +177,47 @@ def test_ppt_units_show_slides_and_report_state(tmp_path: object) -> None:
     client: RecordingClient = app._client  # type: ignore[assignment]
     finished = client.inputs[0]["metadata"]
     assert finished["deck"] == "demo" and finished["page"] == 2
+    assert "第 2/2 页" in client.inputs[0]["content"]
+
+
+def test_queue_finished_and_status_carry_page_script(tmp_path: object) -> None:
+    """ADR-0006：无视觉 Agent 从 queue_finished 与 status 拿到当前页讲稿。"""
+    from pathlib import Path
+
+    async def scenario() -> PresenterApp:
+        root = write_deck(
+            Path(tmp_path), "talk", pages=2, scripts=["第一页：开场与目录。", "乙" * 2000]
+        )
+        app = _app(decks_dir=root)
+        await app.on_unit(
+            {"ppt": {"action": "open_deck", "deck": "talk"}, "speech": "开场。"}
+        )
+        await _settled(app)
+        return app
+
+    app = asyncio.run(scenario())
+    client: RecordingClient = app._client  # type: ignore[assignment]
+    content = client.inputs[0]["content"]
+    assert "当前幻灯片 talk 第 1/2 页" in content
+    assert "本页讲稿：第一页：开场与目录。" in content
+    status = app.status()
+    assert status["page_script"] == "第一页：开场与目录。"
+
+    async def long_script() -> PresenterApp:
+        app = _app(decks_dir=Path(tmp_path))
+        await app.on_unit({"ppt": {"action": "open_deck", "deck": "talk"}})
+        await _settled(app)
+        await app.on_unit({"ppt": {"action": "next"}})
+        await _settled(app)
+        return app
+
+    app = asyncio.run(long_script())
+    client = app._client  # type: ignore[assignment]
+    content = client.inputs[-1]["content"]
+    assert "本页讲稿：" in content
+    assert "…（讲稿截断）" in content, "over-budget scripts are truncated"
+    assert len(content) < 2000 + 200
+    assert app.status()["page_script"].endswith("…（讲稿截断）")
 
 
 def test_ppt_failure_is_async_error_and_speech_continues(tmp_path: object) -> None:

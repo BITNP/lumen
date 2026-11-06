@@ -30,6 +30,18 @@ LOGGER = logging.getLogger(__name__)
 _TICK = 0.05  # subtitle ticker step, seconds
 _SYNTH_DONE = object()  # end-of-sentence marker in the audio chunk queue
 
+# Page scripts ride every queue_finished input (ADR-0006); bound their token
+# cost per invocation regardless of what the deck manifest stores.
+SCRIPT_BUDGET_CHARS = 1600
+
+
+def _bounded_script(script: str | None) -> str | None:
+    if not script:
+        return None
+    if len(script) <= SCRIPT_BUDGET_CHARS:
+        return script
+    return script[:SCRIPT_BUDGET_CHARS] + "…（讲稿截断）"
+
 
 def build_engine(settings: Settings) -> TtsEngine:
     """Assemble the TTS engine per PRESENTER_TTS_ENGINE (ADR-0001).
@@ -211,6 +223,7 @@ class PresenterApp:
             "deck": deck.deck if deck else None,
             "page": deck.page if deck else None,
             "total_pages": deck.total_pages if deck else None,
+            "page_script": _bounded_script(deck.script) if deck else None,
         }
 
     # -- round execution ----------------------------------------------------
@@ -403,6 +416,14 @@ class PresenterApp:
         else:
             content = f"树莓娘已完整播完本轮表达，共 {completed} 句。"
         deck = self._decks.snapshot() if self._decks else None
+        if deck and deck.deck is not None:
+            # 无视觉的 Agent 靠这段讲稿知道屏上这页在讲什么（ADR-0006）。
+            content += (
+                f"当前幻灯片 {deck.deck} 第 {deck.page}/{deck.total_pages} 页。"
+            )
+            script = _bounded_script(deck.script)
+            if script:
+                content += f"本页讲稿：{script}"
         await self._client.send_input(
             content,
             metadata={
