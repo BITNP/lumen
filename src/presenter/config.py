@@ -33,6 +33,7 @@ BRIDGE_PORT_KEY: Final = "PRESENTER_BRIDGE_PORT"
 GODOT_PATH_KEY: Final = "PRESENTER_GODOT_PATH"
 QUEUE_MAX_KEY: Final = "PRESENTER_QUEUE_MAX"
 DECKS_DIR_KEY: Final = "PRESENTER_DECKS_DIR"
+SENTENCE_GAP_KEY: Final = "PRESENTER_SENTENCE_GAP_SECONDS"
 
 DEFAULT_TTS_ENGINE: Final = "auto"
 DEFAULT_COSYVOICE_MODEL: Final = "cosyvoice-v3-flash"
@@ -43,6 +44,10 @@ DEFAULT_AUDIO_CPP_URL: Final = "http://127.0.0.1:8080"
 DEFAULT_AUDIO_CPP_SAMPLE_RATE: Final = 24_000
 DEFAULT_TTS_FALLBACK_AFTER: Final = 3
 DEFAULT_TTS_RETRY_AFTER_SECONDS: Final = 60.0
+# Minimum gap between sentences: the next sentence opens no sooner than this
+# after the previous one fully played.  The synthesis wait counts into the gap
+# (never stacked on top of it) and the round's first sentence never waits.
+DEFAULT_SENTENCE_GAP_SECONDS: Final = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +71,7 @@ class Settings:
     audio_cpp_sample_rate: int = DEFAULT_AUDIO_CPP_SAMPLE_RATE
     tts_fallback_after: int = DEFAULT_TTS_FALLBACK_AFTER
     tts_retry_after_seconds: float = DEFAULT_TTS_RETRY_AFTER_SECONDS
+    sentence_gap_seconds: float = DEFAULT_SENTENCE_GAP_SECONDS
 
 
 class ConfigError(RuntimeError):
@@ -115,6 +121,9 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         ),
         tts_retry_after_seconds=_parse_float(
             source, TTS_RETRY_AFTER_KEY, DEFAULT_TTS_RETRY_AFTER_SECONDS, minimum=1.0
+        ),
+        sentence_gap_seconds=_parse_float(
+            source, SENTENCE_GAP_KEY, DEFAULT_SENTENCE_GAP_SECONDS, minimum=0.0
         ),
     )
 

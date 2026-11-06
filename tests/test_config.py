@@ -19,6 +19,20 @@ def test_defaults() -> None:
     assert settings.cosyvoice_model == "cosyvoice-v3-flash"
     assert settings.bridge_port == 8790
     assert settings.queue_max == 64
+    assert settings.sentence_gap_seconds == 1.0
+
+
+def test_sentence_gap_override_and_validation() -> None:
+    assert load_settings(
+        _env(PRESENTER_SENTENCE_GAP_SECONDS="0")
+    ).sentence_gap_seconds == 0.0
+    assert load_settings(
+        _env(PRESENTER_SENTENCE_GAP_SECONDS="2.5")
+    ).sentence_gap_seconds == 2.5
+    with pytest.raises(ConfigError):
+        load_settings(_env(PRESENTER_SENTENCE_GAP_SECONDS="-0.1"))
+    with pytest.raises(ConfigError):
+        load_settings(_env(PRESENTER_SENTENCE_GAP_SECONDS="long"))
 
 
 def test_hub_url_required_and_ws_scheme() -> None:

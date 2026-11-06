@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import struct
+import time
 import zlib
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -86,14 +87,17 @@ class RecordingClient:
 
 
 class RecordingBridge(PresentationBridge):
-    """Bridge double that records commands instead of sending to a window."""
+    """Bridge double that records commands (with arrival times) instead of
+    sending them to a window."""
 
     def __init__(self) -> None:
         super().__init__(port=0)
         self.commands: list[dict] = []
+        self.arrived_at: list[float] = []
 
     async def send(self, command: dict) -> None:  # type: ignore[override]
         self.commands.append(command)
+        self.arrived_at.append(time.monotonic())
 
 
 def make_png(width: int = 2, height: int = 2) -> bytes:

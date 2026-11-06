@@ -183,6 +183,9 @@ class PresenterApp:
         self._round_completed = 0
         self._round_active = False
         self._stop_requested = False
+        # Monotonic clock of when the last sentence fully played; the anchor
+        # for the minimum inter-sentence gap (None: nothing spoken yet).
+        self._last_speech_end_at: float | None = None
 
     # -- hub-facing callbacks ---------------------------------------------
 
@@ -233,6 +236,7 @@ class PresenterApp:
         self._round_active = True
         self._stop_requested = False
         self._round_completed = 0
+        self._last_speech_end_at = None  # the round's first sentence never waits
         LOGGER.debug("round worker started (queued=%d)", self._queue.qsize())
         lookahead: ExpressionUnit | None = None
         synth_next: _Synth | None = None
@@ -344,6 +348,7 @@ class PresenterApp:
                     continue
                 if not speaking:
                     speaking = True
+                    await self._hold_sentence_gap()
                     await self._bridge.send(
                         {"type": "subtitle_set", "text": text, "visible_chars": 0}
                     )
@@ -370,6 +375,7 @@ class PresenterApp:
             LOGGER.info(
                 "sentence fully played (%.1fs audio): %r", total_bytes / BYTES_PER_SECOND, text
             )
+            self._last_speech_end_at = time.monotonic()
         except BaseException:
             if synth_next is not None:
                 synth_next.cancel()
@@ -377,6 +383,25 @@ class PresenterApp:
         finally:
             self._current_synth = None
         return lookahead, synth_next
+
+    async def _hold_sentence_gap(self) -> None:
+        """Pad the minimum breathing gap between sentences (PRESENTER_SENTENCE_GAP_SECONDS).
+
+        Called with the next sentence's FIRST audio chunk already in hand, just
+        before it replaces the subtitle: the synthesis wait itself counts into
+        the gap, so the pause never stacks on top of a slow synthesis (the gap
+        is a minimum interval since the previous sentence finished playing, not
+        an extra delay).  The round's first sentence has no anchor and speaks
+        immediately.  The screen keeps showing the previous sentence's full
+        subtitle for as long as we hold; stop cancels the worker task, which
+        interrupts this sleep at once.
+        """
+        gap = self._settings.sentence_gap_seconds
+        if gap <= 0.0 or self._last_speech_end_at is None:
+            return
+        remaining = gap - (time.monotonic() - self._last_speech_end_at)
+        if remaining > 0:
+            await asyncio.sleep(remaining)
 
     async def _reveal(self, text: str, started_at: float, duration_ms: int, *, full: bool = False) -> None:
         elapsed_ms = int(max(0.0, self._player.written_seconds - started_at) * 1000)

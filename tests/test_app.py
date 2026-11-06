@@ -6,6 +6,7 @@ real synthesis path is covered by the real-marked smoke test.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import AsyncIterator, Callable
 
 from placeholders import (
@@ -27,8 +28,13 @@ def _app(
     queue_max: int = 64,
     bridge: PresentationBridge | None = None,
     decks_dir: object = None,
+    sentence_gap: float = 0.0,
 ) -> PresenterApp:
-    env = {"WAYCAST_HUB_URL": "ws://127.0.0.1:1", "PRESENTER_QUEUE_MAX": str(queue_max)}
+    env = {
+        "WAYCAST_HUB_URL": "ws://127.0.0.1:1",
+        "PRESENTER_QUEUE_MAX": str(queue_max),
+        "PRESENTER_SENTENCE_GAP_SECONDS": str(sentence_gap),
+    }
     if decks_dir is not None:
         env["PRESENTER_DECKS_DIR"] = str(decks_dir)
     settings = load_settings(env)
@@ -249,6 +255,142 @@ def test_ppt_failure_is_async_error_and_speech_continues(tmp_path: object) -> No
     assert engine.calls == ["照样说话。"]
     assert client.inputs[0]["metadata"]["event"] == "queue_finished"
     assert not any(c.get("type") == "ppt" for c in bridge.commands)
+
+
+def test_sentence_gap_holds_previous_subtitle_between_sentences() -> None:
+    """句间停顿（PRESENTER_SENTENCE_GAP_SECONDS）：上一句播完后屏上停一拍再切下一句。"""
+
+    async def scenario(gap: float) -> tuple[RecordingBridge, float]:
+        bridge = RecordingBridge()
+        app = _app(bridge=bridge, sentence_gap=gap)
+        await app.on_unit({"speech": "第一句"})
+        await app.on_unit({"speech": "第二句"})
+        started = time.monotonic()
+        await _settled(app, seconds=5.0)
+        return bridge, time.monotonic() - started
+
+    bridge, _ = asyncio.run(scenario(0.6))
+    stamps = list(zip(bridge.commands, bridge.arrived_at))
+    first_full = max(
+        t
+        for command, t in stamps
+        if command["type"] == "subtitle_set"
+        and command["text"] == "第一句"
+        and command["visible_chars"] == len("第一句")
+    )
+    second_start = min(
+        t
+        for command, t in stamps
+        if command["type"] == "subtitle_set" and command["text"] == "第二句"
+    )
+    assert second_start - first_full >= 0.55, "句间停顿不足，上一句字幕没停够一拍"
+    _, tight_seconds = asyncio.run(scenario(0.0))
+    assert tight_seconds < 1.5, "gap=0 时不应引入停顿"
+
+
+def test_first_sentence_never_waits_for_the_gap() -> None:
+    """首句没有句间停顿：gap 只发生在句与句之间，开场立即可讲。"""
+
+    async def scenario() -> bool:
+        bridge = RecordingBridge()
+        app = _app(bridge=bridge, sentence_gap=1.0)
+        await app.on_unit({"speech": "第一句"})
+        return await _wait_until(
+            lambda: any(c["type"] == "subtitle_set" for c in bridge.commands),
+            timeout=0.5,
+        )
+
+    assert asyncio.run(scenario()), "首句被句间停顿延迟了"
+
+
+def test_gap_does_not_stack_on_slow_synthesis() -> None:
+    """gap 是句间最少间隔而非额外延迟：合成等待本身超过 gap 时不再叠加等待。
+
+    第二句的首块在上一句播完 1s 后才到达（gap 0.5s）：字幕应随首块立即
+    切换，而不是再补睡 0.5s（1.5s 才开口）。
+    """
+
+    async def scenario() -> tuple[bool, float]:
+        gate1, gate2 = asyncio.Event(), asyncio.Event()
+        engine = _GateEngine({0: gate1, 1: gate2})
+        bridge = RecordingBridge()
+        app = _app(engine=engine, bridge=bridge, sentence_gap=0.5)
+        client: RecordingClient = app._client  # type: ignore[assignment]
+        await app.on_unit({"speech": "第一句"})
+        assert await _wait_until(lambda: engine.calls == ["第一句"])
+        await app.on_unit({"speech": "第二句"})
+        gate1.set()
+        assert await _wait_until(lambda: app.status()["completed_sentences"] == 1)
+        assert await _wait_until(lambda: len(engine.calls) == 2)
+        await asyncio.sleep(1.0)  # 合成等待已超过 gap，停顿应完全被其吸收
+        opened = time.monotonic()
+        gate2.set()
+        appeared = await _wait_until(
+            lambda: any(
+                c["type"] == "subtitle_set" and c["text"] == "第二句"
+                for c in bridge.commands
+            ),
+            timeout=2.0,
+        )
+        elapsed = time.monotonic() - opened
+        # 轮次在字幕出现后瞬间收尾（末句无停顿），等 queue_finished 落定即可。
+        assert await _wait_until(
+            lambda: any(
+                i["metadata"].get("event") == "queue_finished" for i in client.inputs
+            ),
+            timeout=2.0,
+        )
+        return appeared, elapsed
+
+    appeared, after_gate = asyncio.run(scenario())
+    assert appeared
+    assert after_gate < 0.3, f"停顿叠加在合成等待之上（开闸后 {after_gate:.2f}s 才开口）"
+
+
+def test_stop_interrupts_the_sentence_gap() -> None:
+    """停顿期间 stop：worker 立刻取消，不再开口第二句、不重复报 queue_finished。"""
+
+    async def scenario() -> tuple[RecordingBridge, RecordingClient]:
+        bridge = RecordingBridge()
+        app = _app(bridge=bridge, sentence_gap=2.0)
+        client: RecordingClient = app._client  # type: ignore[assignment]
+        await app.on_unit({"speech": "第一句"})
+        await app.on_unit({"speech": "第二句"})
+        held = await _wait_until(
+            lambda: any(
+                c["type"] == "subtitle_set"
+                and c["text"] == "第一句"
+                and c["visible_chars"] == len("第一句")
+                for c in bridge.commands
+            ),
+            timeout=2.0,
+        )
+        assert held, "第一句没有播完"
+        await asyncio.sleep(0.1)  # 此刻应正处于句间停顿的 sleep 中
+        await app.on_unit({"control": "stop"})
+        await asyncio.sleep(0.3)
+        return bridge, client
+
+    bridge, client = asyncio.run(scenario())
+    assert not any(
+        c["type"] == "subtitle_set" and c["text"] == "第二句" for c in bridge.commands
+    ), "stop 后停顿结束仍开口了第二句"
+    finished = [i for i in client.inputs if i["metadata"].get("event") == "queue_finished"]
+    assert len(finished) == 1 and finished[0]["metadata"]["interrupted"] is True
+
+
+def test_no_gap_pause_after_last_sentence() -> None:
+    """末句之后没有下一句：不等待句间停顿，直接发 queue_finished。"""
+
+    async def scenario() -> float:
+        app = _app(sentence_gap=0.8)
+        started = time.monotonic()
+        await app.on_unit({"speech": "只此一句"})
+        await _settled(app, seconds=3.0)
+        return time.monotonic() - started
+
+    elapsed = asyncio.run(scenario())
+    assert elapsed < 0.8, f"末句后不应等待句间停顿（实测 {elapsed:.2f}s）"
 
 
 class _GateEngine:
