@@ -6,6 +6,7 @@ real synthesis path is covered by the real-marked smoke test.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Callable
 
 from placeholders import (
     FakeEngine,
@@ -17,11 +18,12 @@ from placeholders import (
 from presenter.app import PresenterApp
 from presenter.config import load_settings
 from presenter.presentation import PresentationBridge
+from presenter.tts import TtsEngine
 
 
 def _app(
     *,
-    engine: FakeEngine | None = None,
+    engine: TtsEngine | None = None,
     queue_max: int = 64,
     bridge: PresentationBridge | None = None,
     decks_dir: object = None,
@@ -198,3 +200,104 @@ def test_ppt_failure_is_async_error_and_speech_continues(tmp_path: object) -> No
     assert engine.calls == ["照样说话。"]
     assert client.inputs[0]["metadata"]["event"] == "queue_finished"
     assert not any(c.get("type") == "ppt" for c in bridge.commands)
+
+
+class _GateEngine:
+    """Fake engine gating the first chunk of selected calls behind events.
+
+    Call ``index`` yields nothing until its gate opens, modelling the real
+    multi-second TTS first-chunk latency (measured 3-8 s on audio.cpp).
+    """
+
+    name = "gate"
+
+    def __init__(self, gates: dict[int, asyncio.Event]) -> None:
+        self.calls: list[str] = []
+        self._gates = gates
+
+    async def stream(self, text: str) -> AsyncIterator[bytes]:
+        index = len(self.calls)
+        self.calls.append(text)
+        gate = self._gates.get(index)
+        if gate is not None:
+            await gate.wait()
+        for _ in range(2):
+            yield b"\x00\x00" * 1600  # 0.05 s of 16 kHz mono s16le per chunk
+
+
+async def _wait_until(predicate: Callable[[], bool], *, timeout: float = 1.0) -> bool:
+    """Poll ``predicate`` on a tick; return whether it held before timeout."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while not predicate():
+        if loop.time() > deadline:
+            return False
+        await asyncio.sleep(0.01)
+    return True
+
+
+def test_lookahead_starts_next_synthesis_during_first_chunk_wait() -> None:
+    """合成空窗回归：下一句的预合成必须在当前句等待首块期间被捡起。
+
+    hub 比首句开播晚 ~10ms 才派发下一 unit；lookahead 只取一次会永久错过，
+    下一句直到当前句播完才开始整段合成（实测 6~8s 静音空窗）。
+    """
+
+    async def scenario() -> tuple[list[str], bool]:
+        first_chunk = asyncio.Event()
+        engine = _GateEngine({0: first_chunk})
+        app = _app(engine=engine)
+        assert await app.on_unit({"speech": "第一句"}) == ("ok", "queued")
+        assert await _wait_until(lambda: engine.calls == ["第一句"])
+        await app.on_unit({"speech": "第二句"})
+        # 第一句仍无音频：第二句必须被预合成捡起（旧实现此时永久错过）。
+        started_early = await _wait_until(lambda: len(engine.calls) == 2, timeout=0.5)
+        first_chunk.set()
+        await _settled(app)
+        return engine.calls, started_early
+
+    calls, started_early = asyncio.run(scenario())
+    assert calls == ["第一句", "第二句"]
+    assert started_early, "第二句未在第一句等待首块期间开始合成（预合成竞态）"
+
+
+def test_subtitle_switches_only_when_first_audio_chunk_plays() -> None:
+    """字幕时序回归：首块音频前不得切换字幕/开口型，屏上保留上一句。
+
+    合成等待期（首块 3~8s）里 _speak 开头就发 subtitle_set(text, 0) 等同
+    清空屏幕；音频没就绪前字幕必须停在上一句全文。
+    """
+
+    def subtitles(bridge: RecordingBridge) -> list[dict]:
+        return [c for c in bridge.commands if c["type"] == "subtitle_set"]
+
+    async def scenario() -> tuple[list[dict], list[dict], list[dict]]:
+        gate1, gate2 = asyncio.Event(), asyncio.Event()
+        engine = _GateEngine({0: gate1, 1: gate2})
+        bridge = RecordingBridge()
+        app = _app(engine=engine, bridge=bridge)
+        await app.on_unit({"speech": "第一句"})
+        assert await _wait_until(lambda: engine.calls == ["第一句"])
+        # 首块未到：不得有任何 subtitle_set，不得报说话态。
+        early_sets = list(subtitles(bridge))
+        speaking = [c for c in bridge.commands if c["type"] == "speech_state" and c["active"]]
+        assert early_sets == [], "首块到达前不得切换字幕"
+        assert speaking == [], "首块到达前不得进入说话态"
+        await app.on_unit({"speech": "第二句"})
+        gate1.set()
+        assert await _wait_until(lambda: app.status()["completed_sentences"] == 1)
+        # 句 1 播完、句 2 仍在合成（gate2 未开）：字幕必须仍是句 1 全文。
+        assert await _wait_until(lambda: len(engine.calls) == 2)
+        await asyncio.sleep(0.2)  # 给 worker 进入句 2 的 _speak 的时间
+        held = list(subtitles(bridge))
+        gate2.set()
+        await _settled(app)
+        return early_sets, held, subtitles(bridge)
+
+    early_sets, held, final_sets = asyncio.run(scenario())
+    assert early_sets == [] and held, "前置断言应在 scenario 内失败"
+    last = held[-1]
+    assert last["text"] == "第一句", f"合成等待期字幕被提前切换: {last}"
+    assert last["visible_chars"] == len("第一句")
+    assert final_sets[-1]["text"] == "第二句"
+    assert final_sets[-1]["visible_chars"] == len("第二句")

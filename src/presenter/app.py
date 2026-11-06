@@ -235,14 +235,9 @@ class PresenterApp:
                 if unit.speech is not None:
                     synth = synth_next or _Synth(self._engine, unit.speech)
                     synth_next = None
-                    lookahead = self._get_queued()
-                    if (
-                        lookahead is not None
-                        and not lookahead.is_stop
-                        and lookahead.speech is not None
-                    ):
-                        synth_next = _Synth(self._engine, lookahead.speech)
-                    await self._speak(unit, synth)
+                    lookahead, synth_next = await self._speak(
+                        unit, synth, lookahead, synth_next
+                    )
                     if self._stop_requested:
                         break
                 self._round_completed += 1
@@ -276,48 +271,98 @@ class PresenterApp:
             return
         await self._bridge.send(slide)
 
-    async def _speak(self, unit: ExpressionUnit, synth: _Synth) -> None:
+    def _presynth_next(
+        self, lookahead: ExpressionUnit | None, synth_next: _Synth | None
+    ) -> tuple[ExpressionUnit | None, _Synth | None]:
+        """Retry the lookahead once per call; idempotent while the slot is filled.
+
+        The hub dispatches units one by one and the next unit can land slightly
+        after the current sentence started playing; a one-shot lookahead would
+        miss it forever and the next sentence would only start synthesizing
+        once this one finished playing (a measured 6-8 s silent gap).  Callers
+        retry this from every synthesis/playback wait tick.
+        """
+        if lookahead is None:
+            lookahead = self._get_queued()
+        if (
+            lookahead is not None
+            and synth_next is None
+            and not lookahead.is_stop
+            and lookahead.speech is not None
+        ):
+            synth_next = _Synth(self._engine, lookahead.speech)
+        return lookahead, synth_next
+
+    async def _speak(
+        self,
+        unit: ExpressionUnit,
+        synth: _Synth,
+        lookahead: ExpressionUnit | None,
+        synth_next: _Synth | None,
+    ) -> tuple[ExpressionUnit | None, _Synth | None]:
+        """Play one sentence; returns the lookahead pair for the next round step."""
         text = unit.subtitle_text
         self._current_synth = synth
-        await self._bridge.send({"type": "subtitle_set", "text": text, "visible_chars": 0})
-        await self._bridge.send({"type": "speech_state", "active": True})
         started_at = self._player.written_seconds
         total_bytes = 0
         duration_ms = 0
-        # Drain synthesized audio while it plays, revealing subtitles on the
-        # playback clock; duration becomes exact when synthesis completes.
-        while True:
-            item = await synth.chunks.get()
-            if isinstance(item, asyncio.CancelledError):
-                raise TtsError("synthesis cancelled by stop control")
-            if isinstance(item, BaseException):
-                raise TtsError(f"synthesis failed: {item}")
-            if not isinstance(item, bytes):
-                if item is _SYNTH_DONE:
-                    duration_ms = estimate_duration_ms(text, total_bytes)
-                    break
-                continue
-            total_bytes += len(item)
-            self._player.enqueue(item)
-            if total_bytes % 16000 < len(item):
-                await self._reveal(text, started_at, duration_ms)
-        await self._reveal(text, started_at, duration_ms)
-        # Wait for the enqueued audio to actually reach the output: the target
-        # clock position is tied to the enqueued byte count, with a 5 ms
-        # tolerance so accumulated float time can always cross the line.
-        target_written = started_at + total_bytes / BYTES_PER_SECOND
-        while (
-            self._player.written_seconds + 0.005 < target_written
-            and not self._stop_requested
-        ):
+        speaking = False
+        try:
+            # Drain synthesized audio while it plays, revealing subtitles on the
+            # playback clock; duration becomes exact when synthesis completes.
+            # Subtitle and speaking state wait for the FIRST audio chunk: the
+            # screen keeps the previous sentence for the whole first-chunk wait
+            # (measured 3-8 s) instead of going blank.
+            while True:
+                lookahead, synth_next = self._presynth_next(lookahead, synth_next)
+                try:
+                    item = await asyncio.wait_for(synth.chunks.get(), timeout=_TICK)
+                except TimeoutError:
+                    continue
+                if isinstance(item, asyncio.CancelledError):
+                    raise TtsError("synthesis cancelled by stop control")
+                if isinstance(item, BaseException):
+                    raise TtsError(f"synthesis failed: {item}")
+                if not isinstance(item, bytes):
+                    if item is _SYNTH_DONE:
+                        duration_ms = estimate_duration_ms(text, total_bytes)
+                        break
+                    continue
+                if not speaking:
+                    speaking = True
+                    await self._bridge.send(
+                        {"type": "subtitle_set", "text": text, "visible_chars": 0}
+                    )
+                    await self._bridge.send({"type": "speech_state", "active": True})
+                total_bytes += len(item)
+                self._player.enqueue(item)
+                if total_bytes % 16000 < len(item):
+                    await self._reveal(text, started_at, duration_ms)
             await self._reveal(text, started_at, duration_ms)
-            await asyncio.sleep(_TICK)
-        await self._reveal(text, started_at, duration_ms, full=True)
-        await self._bridge.send({"type": "speech_state", "active": False})
-        self._current_synth = None
-        LOGGER.info(
-            "sentence fully played (%.1fs audio): %r", total_bytes / BYTES_PER_SECOND, text
-        )
+            # Wait for the enqueued audio to actually reach the output: the target
+            # clock position is tied to the enqueued byte count, with a 5 ms
+            # tolerance so accumulated float time can always cross the line.
+            target_written = started_at + total_bytes / BYTES_PER_SECOND
+            while (
+                self._player.written_seconds + 0.005 < target_written
+                and not self._stop_requested
+            ):
+                lookahead, synth_next = self._presynth_next(lookahead, synth_next)
+                await self._reveal(text, started_at, duration_ms)
+                await asyncio.sleep(_TICK)
+            await self._reveal(text, started_at, duration_ms, full=True)
+            if speaking:
+                await self._bridge.send({"type": "speech_state", "active": False})
+            LOGGER.info(
+                "sentence fully played (%.1fs audio): %r", total_bytes / BYTES_PER_SECOND, text
+            )
+        except BaseException:
+            if synth_next is not None:
+                synth_next.cancel()
+            raise
+        finally:
+            self._current_synth = None
+        return lookahead, synth_next
 
     async def _reveal(self, text: str, started_at: float, duration_ms: int, *, full: bool = False) -> None:
         elapsed_ms = int(max(0.0, self._player.written_seconds - started_at) * 1000)
