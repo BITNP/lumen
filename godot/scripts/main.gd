@@ -8,6 +8,7 @@ extends Control
 
 const CONFIG_PATH := "res://presenter-config.json"
 const RECONNECT_INTERVAL := 1.0
+const SLIDE_WIDTH := 1280.0  # fixed display width; height follows the PNG aspect
 
 var _socket := WebSocketPeer.new()
 var _url := "ws://127.0.0.1:8790/"
@@ -101,6 +102,11 @@ func _apply_slide(message: Dictionary) -> void:
 		push_warning("slide image unavailable: %s" % path)
 		return
 	_slide.texture = ImageTexture.create_from_image(image)
+	# Aspect-true display: the rect keeps the design width and takes the height
+	# from the PNG ratio, so the scale-to-fill draw never distorts.  The node is
+	# top-left anchored, so the box grows downward only and the top-left corner
+	# (and with it the whole top edge) stays put across pages.
+	_slide.size = Vector2(SLIDE_WIDTH, SLIDE_WIDTH * image.get_height() / image.get_width())
 	if not _slide.visible:
 		_slide.visible = true
 		if _animations.has_animation("load_slide"):
