@@ -7,7 +7,7 @@ implementation of this protocol.
 """
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Final, Protocol
 
 SAMPLE_RATE_HZ: Final = 16_000
@@ -23,7 +23,7 @@ class TtsEngine(Protocol):
 
     name: str
 
-    def stream(self, text: str) -> AsyncIterator[bytes]:
+    def stream(self, text: str) -> AsyncGenerator[bytes, None]:
         """Stream PCM chunks for one sentence until it is fully synthesized."""
         ...
 

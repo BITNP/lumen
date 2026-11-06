@@ -12,7 +12,7 @@ import asyncio
 import queue
 import threading
 import warnings
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 # DashScope imports the deprecated Assistants API at package level; only TTS
@@ -82,7 +82,7 @@ class CosyVoiceEngine:
         self._slots = asyncio.Semaphore(2)
         dashscope.api_key = api_key
 
-    async def stream(self, text: str) -> AsyncIterator[bytes]:
+    async def stream(self, text: str) -> AsyncGenerator[bytes, None]:
         async with self._slots, asyncio.timeout(self._timeout):
             bridge = _ChunkBridge()
             synth: Any = SpeechSynthesizer(

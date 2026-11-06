@@ -10,7 +10,7 @@ import json
 import struct
 import time
 import zlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from presenter.playback import PlayerSink
@@ -62,7 +62,7 @@ class FakeEngine:
         self._chunks = chunks
         self._delay = delay
 
-    async def stream(self, text: str) -> AsyncIterator[bytes]:
+    async def stream(self, text: str) -> AsyncGenerator[bytes, None]:
         self.calls.append(text)
         for _ in range(self._chunks):
             if self._delay:
@@ -132,7 +132,7 @@ class ScriptedEngine:
         self.script = script
         self.calls = 0
 
-    async def stream(self, text: str) -> AsyncIterator[bytes]:
+    async def stream(self, text: str) -> AsyncGenerator[bytes, None]:
         self.calls += 1
         mode = self.script.pop(0) if self.script else "ok"
         if mode == "fail":

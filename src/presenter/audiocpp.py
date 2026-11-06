@@ -19,7 +19,7 @@ import base64
 import binascii
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any, cast
 
 import httpx
@@ -114,7 +114,7 @@ class AudioCppEngine:
         except httpx.HTTPError:
             return False
 
-    async def stream(self, text: str) -> AsyncIterator[bytes]:
+    async def stream(self, text: str) -> AsyncGenerator[bytes, None]:
         payload: dict[str, Any] = {
             "model": self._model,
             "input": text,

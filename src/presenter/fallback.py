@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Protocol
 
 from presenter.tts import TtsEngine
@@ -45,7 +45,7 @@ class AutoTtsEngine:
         self._degraded_at: float | None = None
         self.name: str = primary.name  # status-visible: engine actually in use
 
-    async def stream(self, text: str) -> AsyncIterator[bytes]:
+    async def stream(self, text: str) -> AsyncGenerator[bytes, None]:
         chain = self._attempt_chain()
         for index, engine in enumerate(chain):
             produced = False

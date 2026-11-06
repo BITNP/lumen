@@ -127,13 +127,19 @@ class _Synth:
         self._task = asyncio.create_task(self._pump(engine, text))
 
     async def _pump(self, engine: TtsEngine, text: str) -> None:
+        stream = engine.stream(text)
         try:
-            async for chunk in engine.stream(text):
+            async for chunk in stream:
                 if self._first_chunk_at is None:
                     self._first_chunk_at = time.monotonic()
                 self.total_bytes += len(chunk)
                 await self.chunks.put(chunk)
         except asyncio.CancelledError:
+            # Deterministic provider teardown (CosyVoice WS close + in-flight
+            # slot release); relying on asyncgen GC finalization can leave the
+            # engine semaphore held by an abandoned sentence for seconds.
+            with contextlib.suppress(BaseException):
+                await stream.aclose()
             await self.chunks.put(asyncio.CancelledError())
             raise
         except Exception as exc:

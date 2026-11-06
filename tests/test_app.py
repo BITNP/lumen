@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 
 from placeholders import (
     FakeEngine,
@@ -406,7 +406,7 @@ class _GateEngine:
         self.calls: list[str] = []
         self._gates = gates
 
-    async def stream(self, text: str) -> AsyncIterator[bytes]:
+    async def stream(self, text: str) -> AsyncGenerator[bytes, None]:
         index = len(self.calls)
         self.calls.append(text)
         gate = self._gates.get(index)
