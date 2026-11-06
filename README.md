@@ -66,7 +66,9 @@ godot --path godot/
   `queue_finished` 输入帧回 hub。
 - **M2（已完成）**：Live2D 形象（上游 gd_cubism v0.9.1 插件 + 树莓娘模型资产），
   `emotion`/`motion` 标签驱动表情 clip 与命名动作，口型跟随宿主播放标志
-  （bridge `speech_state` 消息）；空闲呼吸/眨眼/头部微动为本地程序化动画。形象置于
+  （bridge `speech_state` 消息）；空闲呼吸/眨眼/头部微动为本地程序化动画；动作播完
+  自动播放内部 `reset` 动作把参数淡回默认值（资产曲线终点非中性，且 gd_cubism 只
+  持久化运动窗口内的写入，见 live2d_avatar.gd 注释）。形象置于
   手设计舞台布局的待机位（见下节"舞台视觉"）。
 - **M3（已完成）**：PPT 显示与翻页。deck 预先用 `tools/prepare_deck.py` 导出为逐页 PNG
   （soffice + pdftoppm，含 manifest 校验，支持 `--first/--last` 页范围）；Agent 在单元的 `ppt` 字段携带

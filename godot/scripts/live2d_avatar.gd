@@ -8,6 +8,7 @@ extends GDCubismUserModel
 const MODEL := "res://assets/raspberry_girl.model3.json"
 const EXPRESSIONS := ["nod", "shake_head", "wink"]
 const MOTIONS := ["wave", "point", "sweat", "no"]
+const RESET_MOTION := "reset"
 const BLINK_PERIOD := 4.0
 const BLINK_SECONDS := 0.32
 const RECOVERY_SECONDS := 0.25
@@ -36,6 +37,17 @@ var _expression_recovery := 0.0
 var _recovery_face: Dictionary = {}
 var _face: Dictionary = {}
 var _time := 0.0
+# Motion tail recovery: the bundled motion3.json files end on the gesture peak
+# (sweat ends with ParamSweat=1 and a tilted head) and Cubism keeps restoring
+# that ending forever: GDCubism re-loads its parameter backup right before
+# every motion update, so only values written *by a motion* survive into the
+# next frame. GDScript writes (cubism_process runs after that backup window)
+# are therefore re-applied every frame and vanish the moment they stop. The
+# fix is baked as data: reset.motion3.json holds every curve the gestures
+# touch at its neutral value (parameter default / loaded part opacity) and
+# fades in over 0.5s, so Cubism itself blends the pose back and persists it.
+var _motion_had_entries := false
+var _gesture_pending := false
 
 
 func _ready() -> void:
@@ -75,7 +87,10 @@ func play_motion(tag: String) -> bool:
 		push_warning("unknown motion tag: %s" % tag)
 		return false
 	var handle: GDCubismMotionQueueEntryHandle = start_motion_loop(tag, 0, 3, false, true)
-	return handle != null and handle.get_error() == OK
+	if handle != null and handle.get_error() == OK:
+		_gesture_pending = true  # queue drain later starts the reset motion
+		return true
+	return false
 
 
 func _write(id: String, value: float) -> void:
@@ -87,8 +102,17 @@ func _write(id: String, value: float) -> void:
 
 func _advance(_model: GDCubismUserModel, delta: float) -> void:
 	_time += delta
+	var queue_empty := get_cubism_motion_queue_entries().is_empty()
+	if not queue_empty:
+		_motion_had_entries = true
+	elif _motion_had_entries:
+		_motion_had_entries = false
+		if _gesture_pending:
+			_gesture_pending = false
+			# Lower priority than the gestures so a new one can cut it short.
+			start_motion_loop(RESET_MOTION, 0, 2, false, true)
 	_write("ParamBreath", 0.5 + 0.5 * sin(_time * TAU / 3.0))
-	if get_cubism_motion_queue_entries().is_empty():
+	if queue_empty:
 		_write("ParamAngleX", sin(_time * TAU / 3.0) * 5.0)
 		_write("ParamAngleZ", cos(_time * TAU / 3.0) * 3.0)
 	_advance_expression(delta)
