@@ -22,6 +22,18 @@ def _ppt(action: str, **fields: object) -> PptCommand:
     return unit.ppt
 
 
+def test_relative_root_still_yields_absolute_image_path(root: Path, monkeypatch) -> None:
+    # A relative PRESENTER_DECKS_DIR must not leak relative image paths to the
+    # bridge: Godot resolves them against its own project dir (实机 bug).
+    import os
+
+    monkeypatch.chdir(root.parent)
+    manager = DeckManager(Path(os.path.relpath(root)))
+    show = manager.apply(_ppt("open_deck", deck="demo"))
+    assert Path(show["image"]).is_absolute()
+    assert show["image"] == str(root / "demo" / "001.png")
+
+
 def test_open_then_next_goto_prev_close(root: Path) -> None:
     manager = DeckManager(root)
     show = manager.apply(_ppt("open_deck", deck="demo"))

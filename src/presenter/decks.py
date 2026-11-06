@@ -58,7 +58,11 @@ class DeckManager:
     """Host-side owner of the currently displayed deck (no Godot knowledge)."""
 
     def __init__(self, root: Path) -> None:
-        self._root = root
+        # Bridge protocol requires absolute png paths (presentation.py): Godot
+        # resolves relative OS paths against its own project dir, never the
+        # host CWD, so a relative PRESENTER_DECKS_DIR would silently kill all
+        # slide images.  Resolve once here.
+        self._root = root.resolve()
         self._deck: str | None = None
         self._pages: list[str] = []
         self._scripts: list[str] = []
