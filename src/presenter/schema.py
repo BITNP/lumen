@@ -11,6 +11,14 @@ from typing import Any, Final
 
 MODULE_NAME: Final = "presenter"
 
+# Whitelists mirror the frontend (godot/scripts/live2d_avatar.gd): emotion tags
+# are face-parameter expression clips (godot/assets/face_expressions/), motion
+# tags are the model's motion groups (godot/assets/DAver3.0/motion/).
+# tests/test_schema.py pins schema and .gd constants against each other so the
+# advertised contract cannot drift from what the avatar can actually perform.
+EMOTION_TAGS: Final = ("nod", "shake_head", "wink")
+MOTION_TAGS: Final = ("wave", "point", "sweat", "no")
+
 OUTPUT_SCHEMA: Final[dict[str, Any]] = {
     "type": "object",
     "properties": {
@@ -26,13 +34,16 @@ OUTPUT_SCHEMA: Final[dict[str, Any]] = {
         },
         "emotion": {
             "type": "string",
-            "minLength": 1,
-            "description": "emotion tag for the avatar (e.g. happy, shy, serious)",
+            "enum": list(EMOTION_TAGS),
+            "description": (
+                "facial expression riding on the sentence (expression layer, plays "
+                "alongside any motion; fades back to the neutral face when done)"
+            ),
         },
         "motion": {
             "type": "string",
-            "minLength": 1,
-            "description": "motion tag for the avatar (e.g. wave, nod)",
+            "enum": list(MOTION_TAGS),
+            "description": "one-shot body gesture from the avatar's motion groups",
         },
         "control": {
             "type": "string",
@@ -122,6 +133,8 @@ CAPABILITY_STATUS_DESCRIPTION: Final = (
 
 __all__ = [
     "MODULE_NAME",
+    "EMOTION_TAGS",
+    "MOTION_TAGS",
     "OUTPUT_SCHEMA",
     "CAPABILITY_OUTPUT_DESCRIPTION",
     "CAPABILITY_INPUT_DESCRIPTION",

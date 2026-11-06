@@ -98,7 +98,7 @@ def test_subtitle_stays_after_round_ends() -> None:
 def test_visual_only_units_finish_without_synthesis() -> None:
     async def scenario() -> RecordingClient:
         app = _app()
-        await app.on_unit({"emotion": "happy"})
+        await app.on_unit({"emotion": "wink"})
         await app.on_unit({"motion": "wave"})
         await _settled(app)
         return app._client  # type: ignore[return-value]
@@ -110,7 +110,7 @@ def test_visual_only_units_finish_without_synthesis() -> None:
 def test_queue_overflow_returns_error_result() -> None:
     async def scenario() -> tuple[PresenterApp, list[tuple[str, str]]]:
         app = _app(queue_max=2)
-        results = [await app.on_unit({"emotion": "happy"}) for _ in range(3)]
+        results = [await app.on_unit({"emotion": "wink"}) for _ in range(3)]
         await _settled(app)
         return app, results
 

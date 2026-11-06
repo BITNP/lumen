@@ -15,7 +15,7 @@ def _validate(payload: dict) -> None:
 def test_accepted_payloads() -> None:
     for payload in (
         {"speech": "第一句。"},
-        {"speech": "看这里。", "emotion": "happy", "motion": "wave"},
+        {"speech": "看这里。", "emotion": "wink", "motion": "wave"},
         {"subtitle": "只显示的字幕"},
         {"control": "stop"},
     ):
@@ -34,10 +34,10 @@ def test_rejected_payloads() -> None:
 
 
 def test_parse_defaults_and_subtitle_fallback() -> None:
-    unit = parse_unit({"speech": "你好呀", "emotion": "happy"})
+    unit = parse_unit({"speech": "你好呀", "emotion": "wink"})
     assert unit.speech == "你好呀"
     assert unit.subtitle_text == "你好呀"
-    assert unit.visual_tags() == {"emotion": "happy"}
+    assert unit.visual_tags() == {"emotion": "wink"}
     overridden = parse_unit({"speech": "朗读文本", "subtitle": "显示文本"})
     assert overridden.subtitle_text == "显示文本"
 
