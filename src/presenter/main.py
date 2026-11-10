@@ -1,4 +1,5 @@
 """Entry point for the presenter host process (the waycast module identity)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -41,8 +42,12 @@ def configure_logging() -> None:
     """本模块日志级别走 PRESENTER_LOG_LEVEL（默认 INFO），依赖库走
     PRESENTER_DEPS_LOG_LEVEL（默认 WARNING）。"""
     level = os.environ.get(LOG_LEVEL_KEY, "INFO").strip().upper() or "INFO"
-    deps_level = os.environ.get(DEPS_LOG_LEVEL_KEY, "WARNING").strip().upper() or "WARNING"
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    deps_level = (
+        os.environ.get(DEPS_LOG_LEVEL_KEY, "WARNING").strip().upper() or "WARNING"
+    )
+    logging.basicConfig(
+        level=level, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
     for name in _THIRD_PARTY_LOGGERS:
         logging.getLogger(name).setLevel(deps_level)
 
@@ -56,7 +61,9 @@ async def _run() -> None:
         port=settings.bridge_port,
     )
     supervisor = (
-        GodotSupervisor(settings.godot_path, str(Path(__file__).resolve().parents[2] / "godot"))
+        GodotSupervisor(
+            settings.godot_path, str(Path(__file__).resolve().parents[2] / "godot")
+        )
         if settings.godot_path
         else None
     )
@@ -74,6 +81,7 @@ async def _run() -> None:
         runner.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await runner
+        await app.shutdown()
         if supervisor is not None:
             await supervisor.stop()
         await bridge.stop()

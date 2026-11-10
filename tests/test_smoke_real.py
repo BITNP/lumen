@@ -15,8 +15,11 @@ Full end-to-end acceptance for M1 (manual, real model):
    playback clock; after the last sentence a queue_finished input arrives and
    the Agent stays silent (nothing more to say).
 4. Interrupt check: send a new question mid-speech; the Agent emits
-   {"control":"stop"} + new sentences; old audio stops within ~1 chunk.
+   {"control":"stop"} + new sentences; the sentence mid-play keeps speaking,
+   the new answer takes her voice seamlessly as soon as its first audio is
+   synthesized (ADR-0008), and everything queued behind the head is dropped.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -41,7 +44,9 @@ def test_cosyvoice_real_stream_produces_pcm() -> None:
 
     settings = _settings()
     if not settings.dashscope_api_key or not settings.cosyvoice_voice:
-        pytest.skip("PRESENTER_DASHSCOPE_API_KEY / PRESENTER_COSYVOICE_VOICE not configured")
+        pytest.skip(
+            "PRESENTER_DASHSCOPE_API_KEY / PRESENTER_COSYVOICE_VOICE not configured"
+        )
     engine = build_engine(settings)
 
     async def run() -> bytes:

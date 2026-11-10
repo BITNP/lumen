@@ -3,6 +3,7 @@
 Placeholders never ship in src (workspace rule); real synthesis is covered by
 the `real`-marked smoke tests against DashScope.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,12 +52,60 @@ class SilentPlayer(PlayerSink):
         return True
 
 
+class PacedPlayer(PlayerSink):
+    """Wall-clock consumption: written_seconds advances in real time, so tests
+    can observe playback-relative timing (takeover, action sync)."""
+
+    def __init__(self) -> None:
+        self.enqueued: list[bytes] = []
+        self.cleared = 0
+        self._last: float | None = None
+        self._pending = 0.0
+        self._written = 0.0
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def _tick(self) -> None:
+        now = time.monotonic()
+        if self._last is None:
+            self._last = now
+        played = min(now - self._last, self._pending)
+        self._pending -= played
+        self._written += played
+        self._last = now
+
+    def enqueue(self, chunk: bytes) -> None:
+        self._tick()
+        self._pending += len(chunk) / SILENT_RATE_BYTES
+        self.enqueued.append(chunk)
+
+    def clear(self) -> None:
+        self._tick()
+        self.cleared += 1
+        self._pending = 0.0  # unplayed audio is discarded, never counted
+
+    @property
+    def written_seconds(self) -> float:
+        self._tick()
+        return self._written
+
+    def idle(self) -> bool:
+        self._tick()
+        return self._pending == 0.0
+
+
 class FakeEngine:
     """Deterministic silence; optionally slow, to exercise stop/cancel."""
 
     name = "fake"
 
-    def __init__(self, *, chunk_seconds: float = 0.1, chunks: int = 3, delay: float = 0.0) -> None:
+    def __init__(
+        self, *, chunk_seconds: float = 0.1, chunks: int = 3, delay: float = 0.0
+    ) -> None:
         self.calls: list[str] = []
         self._size = int(SILENT_RATE_BYTES * chunk_seconds)
         self._chunks = chunks
@@ -67,7 +116,7 @@ class FakeEngine:
         for _ in range(self._chunks):
             if self._delay:
                 await asyncio.sleep(self._delay)
-            yield b"\x00\x00" * self._size
+            yield b"\x00" * self._size
 
 
 class RecordingClient:
@@ -80,7 +129,9 @@ class RecordingClient:
     async def send_input(
         self, content: str, *, source: str = "presenter", metadata: dict | None = None
     ) -> None:
-        self.inputs.append({"content": content, "source": source, "metadata": metadata or {}})
+        self.inputs.append(
+            {"content": content, "source": source, "metadata": metadata or {}}
+        )
 
     async def send_result(self, status: str, detail: str) -> None:
         self.results.append((status, detail))
@@ -112,7 +163,7 @@ def make_png(width: int = 2, height: int = 2) -> bytes:
         )
 
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    raw = b"".join(b"\x00" + b"\x7F\x80\x81" * width for _ in range(height))
+    raw = b"".join(b"\x00" + b"\x7f\x80\x81" * width for _ in range(height))
     return (
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", ihdr)
@@ -156,9 +207,7 @@ def write_deck(
     for page_name in page_names:
         (directory / page_name).write_bytes(make_png())
     manifest = {
-        "schema_version": (
-            "1.2.0" if summaries else "1.1.0" if scripts else "1.0.0"
-        ),
+        "schema_version": ("1.2.0" if summaries else "1.1.0" if scripts else "1.0.0"),
         "title": name,
         "total_pages": pages,
         "pages": page_names,
