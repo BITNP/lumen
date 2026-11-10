@@ -1,6 +1,6 @@
 # 显影（Lumen）· 树莓娘聚合输出模块
 
-树莓娘（Raspberry Girl）的**聚合输出模块**（waycast ADR-0010）：一个 waycast 模块
+树莓娘（Raspberry Girl）的**聚合输出模块**（[waycast](https://github.com/BITNP/waycast) ADR-0010）：一个 waycast 模块
 （capability `kind="both"`），整合 TTS 语音合成与播放、Godot 图像前端（字幕、Live2D
 形象、表情、动作）与 PPT 显示翻页。核心 Agent 派发表现输出单元过来，模块按语义执行、
 立刻回 output result，并把"队列播完"事件（唯一输入帧，ADR-0005）送回 hub。
