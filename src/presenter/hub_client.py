@@ -14,18 +14,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import ssl
 from collections.abc import Awaitable, Callable
-from contextlib import AsyncExitStack
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
-import httpx2
-from httpx2.websockets import (
-    WebSocketDisconnect,
-    WebSocketNetworkError,
-    WebSocketUpgradeError,
-)
+import websockets
 
 from presenter.schema import (
     CAPABILITY_INPUT_DESCRIPTION,
@@ -73,14 +66,8 @@ class PresenterClient:
         self._tls_ca = tls_ca_path
         self._name = name
         self._ws: Any = None
-        self._exit_stack: AsyncExitStack | None = None
         self._reader: asyncio.Task[None] | None = None
         self._closed = asyncio.Event()
-        # reader 观察到断线时记录异常：此后 send_* 立即以同一异常失败（对齐旧
-        # websockets 里 reader 主动 close 后 send 抛错的语义；ConnectionClosed
-        # 曾天然属于 ConnectionError/OSError，httpx2 的断线异常族不是，必须显式
-        # 转达给发送侧）。
-        self._dropped: Exception | None = None
 
     async def wait_closed(self) -> None:
         """Resolve when the connection drops (reader loop exited)."""
@@ -95,27 +82,19 @@ class PresenterClient:
         query = urlencode({"token": self._token}) if self._token else parts.query
         return urlunparse(parts._replace(query=query))
 
-    def _client_kwargs(self) -> dict[str, Any]:
-        # 与旧 websockets.connect 的裸连接语义一致：10s 握手时限、绝不读取
-        # 环境代理变量（HTTP_PROXY 等不得劫持到 hub 的直连）。
-        kwargs: dict[str, Any] = {
-            "timeout": httpx2.Timeout(10.0),
-            "trust_env": False,
-        }
+    def _connect_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"open_timeout": 10.0}
         if self._tls_ca:
-            kwargs["verify"] = ssl.create_default_context(cafile=self._tls_ca)
+            import ssl
+
+            kwargs["ssl"] = ssl.create_default_context(cafile=self._tls_ca)
         return kwargs
 
     async def __aenter__(self) -> "PresenterClient":
         uri = self._ws_uri()
-        client = httpx2.AsyncClient(**self._client_kwargs())
-        self._exit_stack = AsyncExitStack()
-        self._exit_stack.push_async_callback(client.aclose)
         try:
-            self._ws = await self._exit_stack.enter_async_context(client.websocket(uri))
-        except (WebSocketUpgradeError, WebSocketNetworkError, httpx2.HTTPError, OSError) as exc:
-            await self._exit_stack.aclose()
-            self._exit_stack = None
+            self._ws = await websockets.connect(uri, **self._connect_kwargs())
+        except OSError as exc:
             raise HubConnectionError(f"cannot reach hub at {uri}: {exc}") from exc
         capability = {
             "name": self._name,
@@ -128,15 +107,15 @@ class PresenterClient:
             "status": {"enabled": True, "description": CAPABILITY_STATUS_DESCRIPTION},
         }
         try:
-            await self._send_text(dumps(make_frame("capability", self._name, capability)))
-            ack = parse_frame(await self._ws.receive_text())
+            await self._ws.send(dumps(make_frame("capability", self._name, capability)))
+            ack = parse_frame(await self._ws.recv())
             if ack["type"] != "capability" or not ack["payload"].get("accepted"):
                 raise HubConnectionError(f"hub did not accept capability: {dumps(ack)}")
         except HubConnectionError:
-            await self._shutdown_ws()
+            await self._ws.close()
             raise
         except Exception as exc:
-            await self._shutdown_ws()
+            await self._ws.close()
             raise HubConnectionError("hub handshake failed") from exc
         self._reader = asyncio.create_task(self._read_loop())
         LOGGER.info("%s admitted to waycast hub (kind=both)", self._name)
@@ -150,19 +129,15 @@ class PresenterClient:
             except asyncio.CancelledError:
                 pass
             self._reader = None
-        await self._shutdown_ws()
-
-    async def _shutdown_ws(self) -> None:
-        if self._exit_stack is not None:
-            await self._exit_stack.aclose()
-            self._exit_stack = None
-        self._ws = None
+        if self._ws is not None:
+            await self._ws.close()
+            self._ws = None
 
     async def _read_loop(self) -> None:
         """Route output_unit and status_query frames; surface remote closure."""
         try:
             while True:
-                frame = parse_frame(await self._ws.receive_text())
+                frame = parse_frame(await self._ws.recv())
                 if frame["type"] == "output_unit":
                     status, detail = await self._on_unit(frame["payload"])
                     await self.send_result(status, detail)
@@ -173,40 +148,21 @@ class PresenterClient:
                         self._status_provider(),
                         request_id=frame["request_id"],
                     )
-                    await self._send_text(dumps(reply))
+                    await self._ws.send(dumps(reply))
                 else:
                     LOGGER.debug("ignoring frame type %s", frame["type"])
-        except (WebSocketDisconnect, WebSocketNetworkError, ConnectionError, OSError) as exc:
-            self._dropped = exc
+        except (websockets.ConnectionClosed, ConnectionError, OSError):
             LOGGER.debug("hub connection closed (reader)")
         except Exception as exc:
-            self._dropped = WebSocketNetworkError(f"hub reader error: {exc}")
             LOGGER.warning("hub reader error: %s", exc)
         finally:
-            if self._dropped is None:  # 非异常退出也须让 send 侧发现会话已死
-                self._dropped = WebSocketNetworkError("hub reader exited")
-            try:  # 主动回应对端关闭（对齐旧 reader finally close：否则对端的
-                await self._ws.close()  # close 握手要空等 close_timeout）
-            except Exception:  # noqa: BLE001 - 清理尽力而为
-                pass
             self._closed.set()
-
-    async def _send_text(self, payload: str) -> None:
-        """One text frame; low-level protocol errors mean dropped, unify them."""
-        try:
-            await self._ws.send_text(payload)
-        except (WebSocketDisconnect, WebSocketNetworkError, ConnectionError, OSError):
-            raise
-        except Exception as exc:  # noqa: BLE001 - wsproto 底层协议错误（如对端已关仍发送）收敛为 httpx2 断线类型
-            raise WebSocketNetworkError("hub connection dropped mid-send") from exc
 
     async def send_result(self, status: str, detail: str) -> None:
         if self._ws is None:
             raise RuntimeError("send_result before __aenter__")
-        if self._dropped is not None:
-            raise self._dropped
         payload = {"module": self._name, "status": status, "detail": detail}
-        await self._send_text(dumps(make_frame("result", self._name, payload)))
+        await self._ws.send(dumps(make_frame("result", self._name, payload)))
 
     async def send_input(
         self,
@@ -217,10 +173,8 @@ class PresenterClient:
     ) -> None:
         if self._ws is None:
             raise RuntimeError("send_input before __aenter__")
-        if self._dropped is not None:
-            raise self._dropped
         payload = {"content": content, "source": source, "metadata": metadata or {}}
-        await self._send_text(dumps(make_frame("input", self._name, payload)))
+        await self._ws.send(dumps(make_frame("input", self._name, payload)))
 
 
 __all__ = ["PresenterClient", "HubConnectionError", "OnUnit"]
