@@ -42,6 +42,9 @@ uv run --locked lumen
 godot --path godot/
 ```
 
+美术资产目录 `godot/assets/`（Live2D 模型、贴图、动作、版面 SVG、字体）为网协专有，
+不随仓库分发（ADR-0010）：新克隆需从网协内部获取该目录，呈现窗口才可启动；宿主进程不依赖它。
+
 配置全部走 `.env`（各键与默认值见 [.env.example](.env.example)），要点：
 
 | 键 | 说明 |
