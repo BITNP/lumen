@@ -104,3 +104,11 @@ uv run --locked python tools/prepare_deck.py ../main.pdf --name main-intro --out
 - **显影**：胶片浸入显影液、潜影浮现为画面的那一步——核心 Agent 的产出停在隐空间（latent）里，正是本模块把一句句 `speech`、一个个表情与翻页指令「显影」成声音、Live2D 形象与画面；而**影戏**是中国人最早的「渲染器」，一块幕布演尽声色，正对本模块 Godot 前端之职。
 - **Lumen**：光通量的国际单位符号 φ——从放映机镜头、从舞台与屏幕流出多少光，就用 lumen 计量；也是 Live2D 窗口亮起、台词显影成光的那一刻。
 - 树莓娘的每一次开口与登台，都是把无形的心智显影成有形的声光。
+
+## 许可证
+
+Copyright © 2026 北京理工大学网络开拓者协会（BITNP）。本仓库以 **AGPL-3.0-or-later** 发布（全文见 [LICENSE](LICENSE)：[SPDX](https://spdx.org/licenses/AGPL-3.0-or-later.html)）：可自由使用、修改、分发；但修改版以分发或网络服务方式对外提供时，必须以同许可整体开源（AGPL 的网络条款）。
+
+树莓娘（Raspberry Girl）名称、形象与相关美术资产为网协专有，**不适用本许可证**。
+
+第三方组件 `godot/addons/gd_cubism/` 遵循其自身 MIT 许可，AGPL 条款不适用于该目录。
