@@ -32,7 +32,7 @@ from presenter.config import ConfigError, load_settings
 pytestmark = pytest.mark.real
 
 
-def _settings():  # noqa: ANN202
+def _settings():
     try:
         return load_settings()
     except ConfigError as exc:
@@ -65,7 +65,7 @@ def test_real_playback_device_available() -> None:
     sounddevice = pytest.importorskip("sounddevice")
     try:
         default = sounddevice.default.device
-    except Exception as exc:  # PortAudio not usable at all
+    except Exception as exc:  # noqa: BLE001 - PortAudio 完全不可用的各种形态一律按无音频子系统跳过
         pytest.skip(f"no audio subsystem: {exc}")
     if default is None or default[1] < 0:
         pytest.skip("no default output device on this machine")

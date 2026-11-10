@@ -10,6 +10,7 @@ production-verified Raspberry Girl core adapter.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import queue
 import threading
 import warnings
@@ -97,7 +98,7 @@ class CosyVoiceEngine:
                 try:
                     synth.streaming_call(text)
                     synth.streaming_complete(int(self._timeout * 1000))
-                except Exception:
+                except Exception:  # noqa: BLE001 - dashscope SDK 线程：任何失败都置位交给消费侧报 TtsError
                     bridge.failed.set()
                     bridge.done.set()
 
@@ -122,12 +123,9 @@ class CosyVoiceEngine:
                 bridge.done.set()
 
                 def close() -> None:
-                    try:
+                    with contextlib.suppress(Exception):  # 取消尽力而为
                         synth.streaming_cancel(1000)
-                    except Exception:
-                        pass
-                    finally:
-                        synth.close()
+                    synth.close()
 
                 await asyncio.to_thread(close)
                 try:

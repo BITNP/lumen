@@ -56,7 +56,7 @@ _CHUNK_BYTES = int(SAMPLE_RATE * CHUNK_SECONDS) * 2
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def do_GET(self) -> None:  # noqa: N802 (http.server API)
+    def do_GET(self) -> None:
         if self.path == "/health":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -67,7 +67,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
-    def do_POST(self) -> None:  # noqa: N802 (http.server API)
+    def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         request = json.loads(self.rfile.read(length) or b"{}")
         if self.path != "/v1/audio/speech":

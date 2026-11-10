@@ -191,4 +191,4 @@ def _parse_float(
     return value
 
 
-__all__ = ["Settings", "ConfigError", "load_settings", "TtsEngineChoice"]
+__all__ = ["ConfigError", "Settings", "TtsEngineChoice", "load_settings"]

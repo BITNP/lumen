@@ -278,7 +278,7 @@ class PresenterApp:
                     self._client = client
                     delay = 1.0
                     await client.wait_closed()
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - 重连循环最后防线：任何断线形态都回到等待重连
                 LOGGER.warning("hub connection lost: %s (retry in %.0fs)", exc, delay)
             finally:
                 self._client = None

@@ -29,4 +29,4 @@ class TtsEngine(Protocol):
         ...
 
 
-__all__ = ["TtsEngine", "TtsError", "SAMPLE_RATE_HZ", "BYTES_PER_SECOND"]
+__all__ = ["BYTES_PER_SECOND", "SAMPLE_RATE_HZ", "TtsEngine", "TtsError"]

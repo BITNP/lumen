@@ -87,20 +87,19 @@ class PresentationBridge:
         for client in list(self._clients):
             try:
                 await client.send(raw)
-            except Exception:
+            except Exception:  # noqa: BLE001 - 发送失败的连接一律剔除，不穷举 websockets 各断开异常族
                 self._clients.discard(client)
 
     async def _handle(self, ws: ServerConnection) -> None:
         self._clients.add(ws)
         LOGGER.info("presentation process connected")
-        try:
+        with contextlib.suppress(
+            Exception
+        ):  # drain: 任何断开/协议故障都按该连接结束处理
             async for raw in ws:  # drain the client's hello; upstream is display-only
                 LOGGER.debug("ignoring upstream frame from presentation: %s", raw[:120])
-        except Exception:
-            pass
-        finally:
-            self._clients.discard(ws)
-            LOGGER.warning("presentation process disconnected")
+        self._clients.discard(ws)
+        LOGGER.warning("presentation process disconnected")
 
 
 class GodotSupervisor:
@@ -152,4 +151,4 @@ class GodotSupervisor:
             delay = min(delay * 2, 30.0)
 
 
-__all__ = ["PresentationBridge", "BridgeSink", "GodotSupervisor"]
+__all__ = ["BridgeSink", "GodotSupervisor", "PresentationBridge"]

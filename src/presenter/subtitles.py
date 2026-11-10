@@ -67,7 +67,7 @@ def estimate_duration_ms(text: str, audio_bytes: int | None = None) -> int:
 
 __all__ = [
     "FALLBACK_UNITS_PER_SECOND",
+    "estimate_duration_ms",
     "reveal_units",
     "reveal_visible_chars",
-    "estimate_duration_ms",
 ]

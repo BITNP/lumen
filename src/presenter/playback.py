@@ -137,7 +137,7 @@ class AudioPlayer:
                         offset += len(piece)
                         with self._lock:
                             self._written_samples += len(piece) // 2
-        except Exception as exc:  # device missing must not kill the host
+        except Exception as exc:  # noqa: BLE001 - 声卡异常不得杀死宿主：任何输出故障都收敛为日志并停线程
             LOGGER.error("audio output thread stopped: %s", exc)
 
 

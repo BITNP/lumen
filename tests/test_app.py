@@ -223,7 +223,7 @@ def test_takeover_cuts_playing_head_when_new_audio_is_ready() -> None:
         assert time.monotonic() - opened < 2.0
         return bridge, app._client, player, cut_at  # type: ignore[return-value]
 
-    bridge, client, player, cut_at = asyncio.run(scenario())
+    _bridge, client, player, cut_at = asyncio.run(scenario())
     assert player.cleared == 1, "接管必须精确地掐一次播放器"
     assert cut_at < 0.9, (
         f"接管发生在队头音频播完之后（{cut_at:.2f}s），成了续播不是接管"

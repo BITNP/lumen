@@ -96,7 +96,7 @@ class _Synth:
             with contextlib.suppress(BaseException):
                 await stream.aclose()
             return
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - 单条合成失败只报 error 结果，不杀播放任务
             LOGGER.warning(
                 "tts synthesis failed after %.2fs (%s): %s",
                 time.monotonic() - self._started_at,
@@ -441,4 +441,4 @@ class PlaybackQueue:
         )
 
 
-__all__ = ["PlaybackQueue", "PlaybackTask", "TICK_SECONDS"]
+__all__ = ["TICK_SECONDS", "PlaybackQueue", "PlaybackTask"]

@@ -52,7 +52,7 @@ def test_pre_audio_failure_retries_transparently() -> None:
 
 
 def test_mid_stream_failure_is_not_retried() -> None:
-    engine, primary, fallback, _ = _auto(["mid"], ["ok"])
+    engine, _primary, fallback, _ = _auto(["mid"], ["ok"])
     audio, error = _run(engine)
     assert error is not None
     assert audio.startswith(b"cosyvoice:")
@@ -83,7 +83,7 @@ def test_threshold_degrades_and_cooldown_probes_recovery() -> None:
 
 
 def test_failed_probe_keeps_engine_degraded() -> None:
-    engine, primary, fallback, now = _auto(
+    engine, primary, _fallback, now = _auto(
         ["fail", "fail", "fail", "fail"], ["ok", "ok", "ok", "ok"]
     )
     _run(engine)

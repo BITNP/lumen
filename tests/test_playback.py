@@ -13,6 +13,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from types import ModuleType
+from typing import Self
 
 from presenter.playback import _CHUNK_SAMPLES, AudioPlayer
 
@@ -29,7 +30,7 @@ class FakeStream:
         self.starts = 0
         self.latency = 0.05
 
-    def __enter__(self) -> FakeStream:
+    def __enter__(self) -> Self:
         self.start()
         return self
 

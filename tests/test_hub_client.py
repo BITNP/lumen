@@ -106,7 +106,7 @@ def test_rejected_capability_raises() -> None:
                     hub_url=url,
                     token="t",
                     on_unit=_never_unit,
-                    status_provider=lambda: {},
+                    status_provider=dict,
                 ):
                     pass
         finally:

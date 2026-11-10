@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, Self
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import websockets
@@ -90,7 +90,7 @@ class PresenterClient:
             kwargs["ssl"] = ssl.create_default_context(cafile=self._tls_ca)
         return kwargs
 
-    async def __aenter__(self) -> "PresenterClient":
+    async def __aenter__(self) -> Self:
         uri = self._ws_uri()
         try:
             self._ws = await websockets.connect(uri, **self._connect_kwargs())
@@ -121,7 +121,7 @@ class PresenterClient:
         LOGGER.info("%s admitted to waycast hub (kind=both)", self._name)
         return self
 
-    async def __aexit__(self, *exc_info: Any) -> None:
+    async def __aexit__(self, *exc_info: object) -> None:
         if self._reader is not None:
             self._reader.cancel()
             try:
@@ -153,7 +153,7 @@ class PresenterClient:
                     LOGGER.debug("ignoring frame type %s", frame["type"])
         except (websockets.ConnectionClosed, ConnectionError, OSError):
             LOGGER.debug("hub connection closed (reader)")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - reader 最后防线：任何异常记日志后退出并置 _closed，由重连接管
             LOGGER.warning("hub reader error: %s", exc)
         finally:
             self._closed.set()
@@ -177,4 +177,4 @@ class PresenterClient:
         await self._ws.send(dumps(make_frame("input", self._name, payload)))
 
 
-__all__ = ["PresenterClient", "HubConnectionError", "OnUnit"]
+__all__ = ["HubConnectionError", "OnUnit", "PresenterClient"]

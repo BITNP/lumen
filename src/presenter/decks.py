@@ -212,15 +212,15 @@ def _text_list(manifest: dict[str, Any], key: str, pages: list[str]) -> list[str
 
 
 __all__ = [
-    "DeckManager",
-    "DeckError",
-    "DeckSnapshot",
+    "MAX_DIMENSION",
+    "MAX_MANIFEST_BYTES",
+    "MAX_PAGES",
+    "MAX_PAGE_BYTES",
+    "MAX_SCRIPT_CHARS",
     "SAFE_DECK_ID",
     "SCHEMA_VERSION",
     "SUPPORTED_SCHEMA_VERSIONS",
-    "MAX_PAGES",
-    "MAX_PAGE_BYTES",
-    "MAX_MANIFEST_BYTES",
-    "MAX_DIMENSION",
-    "MAX_SCRIPT_CHARS",
+    "DeckError",
+    "DeckManager",
+    "DeckSnapshot",
 ]
