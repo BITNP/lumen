@@ -6,7 +6,7 @@ extends Control
 ## Stage layout and the slide entrance animation follow the hand-designed
 ## visuals of the retired vtuber-frontend (1920x1080 canvas_items stretch).
 
-const CONFIG_PATH := "res://presenter-config.json"
+const CONFIG_PATH := "res://lumen-config.json"
 const RECONNECT_INTERVAL := 1.0
 const SLIDE_WIDTH := 1280.0  # fixed display width; height follows the PNG aspect
 
@@ -38,7 +38,7 @@ func _load_config() -> void:
 func _connect() -> void:
 	var err := _socket.connect_to_url(_url)
 	if err != OK:
-		push_warning("presenter bridge connect failed: %s" % error_string(err))
+		push_warning("lumen bridge connect failed: %s" % error_string(err))
 
 
 func _process(delta: float) -> void:
@@ -52,7 +52,7 @@ func _process(delta: float) -> void:
 			_handle_message(_socket.get_packet().get_string_from_utf8())
 	elif state == WebSocketPeer.STATE_CLOSED:
 		if _connected:
-			push_warning("presenter bridge disconnected")
+			push_warning("lumen bridge disconnected")
 		_connected = false
 		_reconnect_timer += delta
 		if _reconnect_timer >= RECONNECT_INTERVAL:

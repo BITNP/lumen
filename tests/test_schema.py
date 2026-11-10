@@ -14,7 +14,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from presenter.schema import EMOTION_TAGS, MOTION_TAGS, OUTPUT_SCHEMA
+from lumen.schema import EMOTION_TAGS, MOTION_TAGS, OUTPUT_SCHEMA
 
 GODOT = Path(__file__).resolve().parents[1] / "godot"
 

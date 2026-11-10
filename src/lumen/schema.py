@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-MODULE_NAME: Final = "presenter"
+MODULE_NAME: Final = "lumen"
 
 # Whitelists mirror the frontend (godot/scripts/live2d_avatar.gd): emotion tags
 # are face-parameter expression clips (godot/assets/face_expressions/), motion
@@ -118,7 +118,7 @@ CAPABILITY_OUTPUT_DESCRIPTION: Final = (
     "unit she will always finish the old answer first. Accepting a unit only means "
     "queued: when the whole dispatched list has finished playing, a queue_finished "
     "input frame arrives carrying a summary including the current slide page's "
-    "content description and suggested speaker script; use status_presenter to check "
+    "content description and suggested speaker script; use status_lumen to check "
     "playback progress, current PPT deck/page or the active TTS engine at any time."
 )
 

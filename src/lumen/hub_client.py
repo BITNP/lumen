@@ -1,9 +1,9 @@
 """Waycast hub connection for a kind="both" module.
 
-Full-duplex on one connection (ADR-0008): the presenter sends its capability
+Full-duplex on one connection (ADR-0008): the lumen sends its capability
 advertisement first, then input / result / status_result frames; it receives
 the capability acknowledgement, output_unit frames and status_query frames.
-The wire contract is mirrored locally in presenter.wire; no core imports.
+The wire contract is mirrored locally in lumen.wire; no core imports.
 
 Unlike voice_input's input-only client, received output_unit frames are handed
 to an async on_unit callback and every handled unit is answered with a result
@@ -20,14 +20,14 @@ from urllib.parse import urlencode, urlparse, urlunparse
 
 import websockets
 
-from presenter.schema import (
+from lumen.schema import (
     CAPABILITY_INPUT_DESCRIPTION,
     CAPABILITY_OUTPUT_DESCRIPTION,
     CAPABILITY_STATUS_DESCRIPTION,
     MODULE_NAME,
     OUTPUT_SCHEMA,
 )
-from presenter.wire import dumps, make_frame, parse_frame
+from lumen.wire import dumps, make_frame, parse_frame
 
 LOGGER = logging.getLogger(__name__)
 
@@ -38,15 +38,15 @@ class HubConnectionError(RuntimeError):
     """Raised when the hub rejects the module connection."""
 
 
-class PresenterClient:
-    """Connected presenter module: send input/result, dispatch output_unit.
+class LumenClient:
+    """Connected lumen module: send input/result, dispatch output_unit.
 
     Usage:
 
-        async with PresenterClient(hub_url=..., token=..., on_unit=...) as client:
+        async with LumenClient(hub_url=..., token=..., on_unit=...) as client:
             await client.send_input(...)
 
-    Reconnection is the caller's job (PresenterApp.run_forever wraps this).
+    Reconnection is the caller's job (LumenApp.run_forever wraps this).
     """
 
     def __init__(
@@ -177,4 +177,4 @@ class PresenterClient:
         await self._ws.send(dumps(make_frame("input", self._name, payload)))
 
 
-__all__ = ["HubConnectionError", "OnUnit", "PresenterClient"]
+__all__ = ["HubConnectionError", "LumenClient", "OnUnit"]

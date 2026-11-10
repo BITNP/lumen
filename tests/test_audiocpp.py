@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 
-from presenter.audiocpp import AudioCppEngine, _LinearResampler
-from presenter.tts import TtsError
+from lumen.audiocpp import AudioCppEngine, _LinearResampler
+from lumen.tts import TtsError
 
 PCM_24K = b"\x00\x64" * 120  # 120 samples of 24 kHz s16le
 

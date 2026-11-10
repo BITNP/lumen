@@ -25,7 +25,7 @@ from typing import Any, cast
 
 import httpx2
 
-from presenter.tts import SAMPLE_RATE_HZ, TtsError
+from lumen.tts import SAMPLE_RATE_HZ, TtsError
 
 LOGGER = logging.getLogger(__name__)
 

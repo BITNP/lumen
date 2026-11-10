@@ -13,9 +13,9 @@ from typing import Any
 import pytest
 import websockets
 
-from presenter.hub_client import HubConnectionError, PresenterClient
-from presenter.schema import MODULE_NAME, OUTPUT_SCHEMA
-from presenter.wire import dumps, make_frame, parse_frame
+from lumen.hub_client import HubConnectionError, LumenClient
+from lumen.schema import MODULE_NAME, OUTPUT_SCHEMA
+from lumen.wire import dumps, make_frame, parse_frame
 
 
 async def _never_unit(payload: dict[str, Any]) -> tuple[str, str]:  # pragma: no cover
@@ -48,7 +48,7 @@ def test_both_handshake_and_frame_routing() -> None:
     async def scenario() -> None:
         server = await _fake_hub(received)
         url = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
-        async with PresenterClient(
+        async with LumenClient(
             hub_url=url,
             token="t",
             on_unit=on_unit,
@@ -102,7 +102,7 @@ def test_rejected_capability_raises() -> None:
         url = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
         try:
             with pytest.raises(HubConnectionError):
-                async with PresenterClient(
+                async with LumenClient(
                     hub_url=url,
                     token="t",
                     on_unit=_never_unit,

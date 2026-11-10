@@ -32,10 +32,10 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any, Final
 
-from presenter.playback import PlayerSink
-from presenter.subtitles import estimate_duration_ms, reveal_visible_chars
-from presenter.tts import BYTES_PER_SECOND, TtsEngine
-from presenter.units import ExpressionUnit, PptCommand
+from lumen.playback import PlayerSink
+from lumen.subtitles import estimate_duration_ms, reveal_visible_chars
+from lumen.tts import BYTES_PER_SECOND, TtsEngine
+from lumen.units import ExpressionUnit, PptCommand
 
 LOGGER = logging.getLogger(__name__)
 

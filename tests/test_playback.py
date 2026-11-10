@@ -15,7 +15,7 @@ from collections.abc import Callable, Iterator
 from types import ModuleType
 from typing import Self
 
-from presenter.playback import _CHUNK_SAMPLES, AudioPlayer
+from lumen.playback import _CHUNK_SAMPLES, AudioPlayer
 
 _RATE = 16_000
 _PIECE_BYTES = _CHUNK_SAMPLES * 2

@@ -31,7 +31,7 @@ _CHUNK_SAMPLES = 800  # 50 ms at 16 kHz
 
 
 class PlayerSink(Protocol):
-    """What PresenterApp needs from a player; tests inject a silent placeholder."""
+    """What LumenApp needs from a player; tests inject a silent placeholder."""
 
     def start(self) -> None: ...
     def stop(self) -> None: ...

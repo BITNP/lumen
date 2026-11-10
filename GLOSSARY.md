@@ -1,4 +1,4 @@
-# raspberrygirl-presenter（聚合输出模块）
+# 显影（Lumen）· 树莓娘聚合输出模块
 
 树莓娘的聚合输出模块：接收 waycast 核心派发的表现输出单元，完成语音合成与播放、字幕
 揭示、形象表现与 PPT 呈现，并把"队列播完"事件（唯一输入帧，ADR-0005）送回核心。
@@ -7,6 +7,10 @@ Output unit、Output result、Unified input、Invocation 等）以
 [waycast GLOSSARY](../waycast/GLOSSARY.md) 为准，此处只定义模块本地术语。
 
 ## Language
+
+**显影 / lumen**:
+本模块（树莓娘的聚合输出模块）的名字，命名来历见 README 末尾「命名来历」（ADR-0009）；wire 上的模块名、CLI 命令与包名均为 `lumen`，环境变量前缀 `LUMEN_`。旧名 presenter 不再用于新设计。
+_Avoid_: presenter（旧标识符）
 
 **宿主进程 (host process)**:
 聚合输出模块中持有 waycast 连接与模块身份的那个进程：播放队列、TTS、播放时钟与
@@ -61,7 +65,7 @@ _Avoid_: 播放完成事件、idle 通知
 _Avoid_: 卡拉OK对齐（viseme/音素级对齐不是本方案）
 
 **句间停顿 (sentence gap)**:
-上一句音频播完到下一句开口之间的**最少**间隔（`PRESENTER_SENTENCE_GAP_SECONDS`，
+上一句音频播完到下一句开口之间的**最少**间隔（`LUMEN_SENTENCE_GAP_SECONDS`，
 默认 1.0s）：合成等待本身计入间隔、不叠加，每轮首句不等，无缝接管的开播不等，
 期间屏上保持上一句全文字幕。
 _Avoid_: 句间延迟（它是最少间隔而非附加延迟）

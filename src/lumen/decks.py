@@ -1,6 +1,6 @@
 """Deck state machine: pre-exported PNG page decks for the ppt unit field.
 
-A deck is a directory under PRESENTER_DECKS_DIR prepared by
+A deck is a directory under LUMEN_DECKS_DIR prepared by
 tools/prepare_deck.py: manifest.json (schema_version "1.2.0", or the older
 "1.0.0"/"1.1.0") plus per-page PNG files.  The manifest's optional ``scripts``
 and ``summaries`` lists hold, per page, a suggested speaker script (建议讲稿)
@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from presenter.units import PptCommand
+from lumen.units import PptCommand
 
 LOGGER = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class DeckManager:
     def __init__(self, root: Path) -> None:
         # Bridge protocol requires absolute png paths (presentation.py): Godot
         # resolves relative OS paths against its own project dir, never the
-        # host CWD, so a relative PRESENTER_DECKS_DIR would silently kill all
+        # host CWD, so a relative LUMEN_DECKS_DIR would silently kill all
         # slide images.  Resolve once here.
         self._root = root.resolve()
         self._deck: str | None = None

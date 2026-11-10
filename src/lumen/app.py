@@ -1,4 +1,4 @@
-"""PresenterApp: the expression pipeline of the aggregate output module.
+"""LumenApp: the expression pipeline of the aggregate output module.
 
 Wires everything together around the unified playback queue (ADR-0002/0003/
 0008): units accepted from the hub become playback tasks; the queue plays the
@@ -6,7 +6,7 @@ head while a background worker pre-synthesizes the rest in order, reveals
 subtitles on the real playback clock, and reports queue_finished when the
 queue truly drains (or its interrupted variant right after a control stop
 dropped pending tasks).  Timing, cancellation and takeover semantics all live
-in presenter.playqueue.
+in lumen.playqueue.
 """
 
 from __future__ import annotations
@@ -17,14 +17,14 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from presenter.config import ConfigError, Settings
-from presenter.decks import DeckError, DeckManager
-from presenter.hub_client import PresenterClient
-from presenter.playback import PlayerSink
-from presenter.playqueue import PlaybackQueue
-from presenter.presentation import BridgeSink, GodotSupervisor
-from presenter.tts import TtsEngine
-from presenter.units import PptCommand, UnitError, parse_unit
+from lumen.config import ConfigError, Settings
+from lumen.decks import DeckError, DeckManager
+from lumen.hub_client import LumenClient
+from lumen.playback import PlayerSink
+from lumen.playqueue import PlaybackQueue
+from lumen.presentation import BridgeSink, GodotSupervisor
+from lumen.tts import TtsEngine
+from lumen.units import PptCommand, UnitError, parse_unit
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def _bounded_page_text(text: str | None) -> str | None:
 
 
 def build_engine(settings: Settings) -> TtsEngine:
-    """Assemble the TTS engine per PRESENTER_TTS_ENGINE (ADR-0001).
+    """Assemble the TTS engine per LUMEN_TTS_ENGINE (ADR-0001).
 
     auto: cloud CosyVoice as primary with the audio.cpp fallback engaged
     automatically on repeated cloud failures; cosyvoice / audio_cpp force one
@@ -55,7 +55,7 @@ def build_engine(settings: Settings) -> TtsEngine:
     primary = _cosyvoice_engine(settings) if _cosyvoice_configured(settings) else None
     fallback = _audio_cpp_engine(settings) if _audio_cpp_configured(settings) else None
     if primary is not None and fallback is not None:
-        from presenter.fallback import AutoTtsEngine
+        from lumen.fallback import AutoTtsEngine
 
         return AutoTtsEngine(
             primary,
@@ -68,7 +68,7 @@ def build_engine(settings: Settings) -> TtsEngine:
     if fallback is not None:
         return fallback
     raise ConfigError(
-        "PRESENTER_TTS_ENGINE",
+        "LUMEN_TTS_ENGINE",
         "auto needs cosyvoice (API key + voice) or audio_cpp (model + voice ref)",
     )
 
@@ -82,14 +82,14 @@ def _audio_cpp_configured(settings: Settings) -> bool:
 
 
 def _cosyvoice_engine(settings: Settings) -> TtsEngine:
-    from presenter.cosyvoice import CosyVoiceEngine
+    from lumen.cosyvoice import CosyVoiceEngine
 
     if not settings.dashscope_api_key:
         raise ConfigError(
-            "PRESENTER_DASHSCOPE_API_KEY", "required for the cosyvoice engine"
+            "LUMEN_DASHSCOPE_API_KEY", "required for the cosyvoice engine"
         )
     if not settings.cosyvoice_voice:
-        raise ConfigError("PRESENTER_COSYVOICE_VOICE", "cloned voice id is required")
+        raise ConfigError("LUMEN_COSYVOICE_VOICE", "cloned voice id is required")
     return CosyVoiceEngine(
         api_key=settings.dashscope_api_key,
         model=settings.cosyvoice_model,
@@ -98,15 +98,15 @@ def _cosyvoice_engine(settings: Settings) -> TtsEngine:
 
 
 def _audio_cpp_engine(settings: Settings) -> TtsEngine:
-    from presenter.audiocpp import AudioCppEngine
+    from lumen.audiocpp import AudioCppEngine
 
     if not settings.audio_cpp_model:
         raise ConfigError(
-            "PRESENTER_AUDIO_CPP_MODEL", "server-configured model id is required"
+            "LUMEN_AUDIO_CPP_MODEL", "server-configured model id is required"
         )
     if not settings.audio_cpp_voice_ref:
         raise ConfigError(
-            "PRESENTER_AUDIO_CPP_VOICE_REF", "cloning reference WAV path is required"
+            "LUMEN_AUDIO_CPP_VOICE_REF", "cloning reference WAV path is required"
         )
     return AudioCppEngine(
         base_url=settings.audio_cpp_url,
@@ -117,7 +117,7 @@ def _audio_cpp_engine(settings: Settings) -> TtsEngine:
     )
 
 
-class PresenterApp:
+class LumenApp:
     def __init__(
         self,
         settings: Settings,
@@ -143,7 +143,7 @@ class PresenterApp:
             on_error=self._report_async_error,
             sentence_gap_seconds=settings.sentence_gap_seconds,
         )
-        self._client: PresenterClient | None = None
+        self._client: LumenClient | None = None
 
     # -- hub-facing callbacks ---------------------------------------------
 
@@ -201,7 +201,7 @@ class PresenterApp:
         an async error result, non-fatal (the sentence keeps going)."""
         if self._decks is None:
             await self._report_async_error(
-                f"ppt {command.action} failed: PRESENTER_DECKS_DIR is not configured"
+                f"ppt {command.action} failed: LUMEN_DECKS_DIR is not configured"
             )
             return
         try:
@@ -268,7 +268,7 @@ class PresenterApp:
         delay = 1.0
         while True:
             try:
-                async with PresenterClient(
+                async with LumenClient(
                     hub_url=self._settings.hub_url,
                     token=self._settings.hub_token,
                     on_unit=self.on_unit,
@@ -289,4 +289,4 @@ class PresenterApp:
         await self._playback.shutdown()
 
 
-__all__ = ["PresenterApp", "build_engine"]
+__all__ = ["LumenApp", "build_engine"]

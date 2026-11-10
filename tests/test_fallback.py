@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 
+from lumen.fallback import AutoTtsEngine
+from lumen.tts import TtsError
 from placeholders import ScriptedEngine
-from presenter.fallback import AutoTtsEngine
-from presenter.tts import TtsError
 
 
 def _run(engine: AutoTtsEngine, text: str = "句子。") -> tuple[bytes, TtsError | None]:

@@ -17,7 +17,7 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Protocol
 
-from presenter.tts import TtsEngine
+from lumen.tts import TtsEngine
 
 LOGGER = logging.getLogger(__name__)
 

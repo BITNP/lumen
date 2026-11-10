@@ -10,6 +10,11 @@ import asyncio
 import time
 from collections.abc import AsyncGenerator, Callable
 
+from lumen.app import LumenApp
+from lumen.config import load_settings
+from lumen.playback import PlayerSink
+from lumen.presentation import PresentationBridge
+from lumen.tts import TtsEngine
 from placeholders import (
     FakeEngine,
     PacedPlayer,
@@ -19,11 +24,6 @@ from placeholders import (
     SilentPlayer,
     write_deck,
 )
-from presenter.app import PresenterApp
-from presenter.config import load_settings
-from presenter.playback import PlayerSink
-from presenter.presentation import PresentationBridge
-from presenter.tts import TtsEngine
 
 
 def _app(
@@ -34,16 +34,16 @@ def _app(
     player: PlayerSink | None = None,
     decks_dir: object = None,
     sentence_gap: float = 0.0,
-) -> PresenterApp:
+) -> LumenApp:
     env = {
         "WAYCAST_HUB_URL": "ws://127.0.0.1:1",
-        "PRESENTER_QUEUE_MAX": str(queue_max),
-        "PRESENTER_SENTENCE_GAP_SECONDS": str(sentence_gap),
+        "LUMEN_QUEUE_MAX": str(queue_max),
+        "LUMEN_SENTENCE_GAP_SECONDS": str(sentence_gap),
     }
     if decks_dir is not None:
-        env["PRESENTER_DECKS_DIR"] = str(decks_dir)
+        env["LUMEN_DECKS_DIR"] = str(decks_dir)
     settings = load_settings(env)
-    app = PresenterApp(
+    app = LumenApp(
         settings,
         engine or FakeEngine(),
         player or SilentPlayer(),
@@ -53,7 +53,7 @@ def _app(
     return app
 
 
-async def _settled(app: PresenterApp, *, seconds: float = 3.0) -> None:
+async def _settled(app: LumenApp, *, seconds: float = 3.0) -> None:
     """Wait until the playback queue drained and its queue_finished settled."""
     deadline = asyncio.get_running_loop().time() + seconds
     while asyncio.get_running_loop().time() < deadline:
@@ -80,7 +80,7 @@ async def _wait_until(predicate: Callable[[], bool], *, timeout: float = 1.0) ->
 
 
 def test_two_sentences_play_in_order_then_queue_finished() -> None:
-    async def scenario() -> PresenterApp:
+    async def scenario() -> LumenApp:
         app = _app()
         assert await app.on_unit({"speech": "第一句"}) == ("ok", "queued")
         assert await app.on_unit({"speech": "第二句"}) == ("ok", "queued")
@@ -134,7 +134,7 @@ def test_visual_only_units_finish_without_synthesis() -> None:
 
 
 def test_queue_overflow_returns_error_result() -> None:
-    async def scenario() -> tuple[PresenterApp, list[tuple[str, str]]]:
+    async def scenario() -> tuple[LumenApp, list[tuple[str, str]]]:
         app = _app(queue_max=2)
         results = [await app.on_unit({"emotion": "wink"}) for _ in range(3)]
         await _settled(app)
@@ -164,7 +164,7 @@ def test_stop_drops_backlog_keeps_playing_head_and_reports() -> None:
     """ADR-0008 stop：正在播的队头不被掐、继续播完；其后的任务全部丢弃；
     interrupted 心跳立即发出，幸存队头播完后排空心跳照常发出（两者独立）。"""
 
-    async def scenario() -> tuple[PresenterApp, SilentPlayer]:
+    async def scenario() -> tuple[LumenApp, SilentPlayer]:
         player = SilentPlayer()
         app = _app(
             engine=FakeEngine(chunk_seconds=0.05, chunks=4, delay=0.05), player=player
@@ -312,7 +312,7 @@ def test_synth_failure_reports_error_and_queue_continues() -> None:
 def test_ppt_units_show_slides_and_report_state(tmp_path: object) -> None:
     from pathlib import Path
 
-    async def scenario() -> tuple[PresenterApp, RecordingBridge]:
+    async def scenario() -> tuple[LumenApp, RecordingBridge]:
         root = write_deck(Path(tmp_path), "demo", pages=2)
         bridge = RecordingBridge()
         app = _app(bridge=bridge, decks_dir=root)
@@ -339,7 +339,7 @@ def test_queue_finished_and_status_carry_page_texts(tmp_path: object) -> None:
     """ADR-0006/0007：无视觉 Agent 从 queue_finished 与 status 拿到页面内容与讲稿。"""
     from pathlib import Path
 
-    async def scenario() -> PresenterApp:
+    async def scenario() -> LumenApp:
         root = write_deck(
             Path(tmp_path),
             "talk",
@@ -364,7 +364,7 @@ def test_queue_finished_and_status_carry_page_texts(tmp_path: object) -> None:
     assert status["page_summary"] == "第一页：开场与目录。"
     assert status["page_script"] == "轻松开场，念一下标题。"
 
-    async def long_text() -> PresenterApp:
+    async def long_text() -> LumenApp:
         app = _app(decks_dir=Path(tmp_path))
         await app.on_unit({"ppt": {"action": "open_deck", "deck": "talk"}})
         await _settled(app)
@@ -386,7 +386,7 @@ def test_queue_finished_and_status_carry_page_texts(tmp_path: object) -> None:
 def test_ppt_failure_is_async_error_and_speech_continues(tmp_path: object) -> None:
     from pathlib import Path
 
-    async def scenario() -> tuple[PresenterApp, RecordingBridge]:
+    async def scenario() -> tuple[LumenApp, RecordingBridge]:
         bridge = RecordingBridge()
         app = _app(bridge=bridge, decks_dir=Path(tmp_path))  # empty decks root
         await app.on_unit({"ppt": {"action": "next"}})
@@ -407,7 +407,7 @@ def test_ppt_failure_is_async_error_and_speech_continues(tmp_path: object) -> No
 
 
 def test_sentence_gap_holds_previous_subtitle_between_sentences() -> None:
-    """句间停顿（PRESENTER_SENTENCE_GAP_SECONDS）：上一句播完后屏上停一拍再切下一句。"""
+    """句间停顿（LUMEN_SENTENCE_GAP_SECONDS）：上一句播完后屏上停一拍再切下一句。"""
 
     async def scenario(gap: float) -> tuple[RecordingBridge, float]:
         bridge = RecordingBridge()

@@ -1,5 +1,5 @@
 [project]
-name = "raspberrygirl-presenter"
+name = "lumen"
 version = "0.1.0"
 description = "Raspberry Girl aggregate output module: waycast unit -> TTS + playback + Godot frontend + PPT."
 readme = "README.md"
@@ -18,14 +18,14 @@ dependencies = [
 ]
 
 [project.scripts]
-presenter = "presenter.main:main"
+lumen = "lumen.main:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/presenter"]
+packages = ["src/lumen"]
 
 [dependency-groups]
 dev = [

@@ -5,8 +5,8 @@ from __future__ import annotations
 import jsonschema
 import pytest
 
-from presenter.schema import OUTPUT_SCHEMA
-from presenter.units import PptCommand, UnitError, parse_unit
+from lumen.schema import OUTPUT_SCHEMA
+from lumen.units import PptCommand, UnitError, parse_unit
 
 
 def _validate(payload: dict) -> None:

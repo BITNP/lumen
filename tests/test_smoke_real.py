@@ -4,12 +4,12 @@ Run on the dev machine:
 
     uv run --locked pytest -q -m real
 
-Requires in the environment (or .env): PRESENTER_DASHSCOPE_API_KEY and
-PRESENTER_COSYVOICE_VOICE (cloned voice id).
+Requires in the environment (or .env): LUMEN_DASHSCOPE_API_KEY and
+LUMEN_COSYVOICE_VOICE (cloned voice id).
 
 Full end-to-end acceptance for M1 (manual, real model):
 1. Start the waycast core (see waycast README) with a module token.
-2. Start this host: `uv run --locked presenter`; optionally `godot --path godot/`.
+2. Start this host: `uv run --locked lumen`; optionally `godot --path godot/`.
 3. Start voice input or send a text input to the hub; the Agent should answer
    sentence-per-unit; the machine speaks, the window reveals subtitles on the
    playback clock; after the last sentence a queue_finished input arrives and
@@ -27,7 +27,7 @@ import os
 
 import pytest
 
-from presenter.config import ConfigError, load_settings
+from lumen.config import ConfigError, load_settings
 
 pytestmark = pytest.mark.real
 
@@ -36,17 +36,15 @@ def _settings():
     try:
         return load_settings()
     except ConfigError as exc:
-        pytest.skip(f"real smoke needs presenter env: {exc}")
+        pytest.skip(f"real smoke needs lumen env: {exc}")
 
 
 def test_cosyvoice_real_stream_produces_pcm() -> None:
-    from presenter.app import build_engine
+    from lumen.app import build_engine
 
     settings = _settings()
     if not settings.dashscope_api_key or not settings.cosyvoice_voice:
-        pytest.skip(
-            "PRESENTER_DASHSCOPE_API_KEY / PRESENTER_COSYVOICE_VOICE not configured"
-        )
+        pytest.skip("LUMEN_DASHSCOPE_API_KEY / LUMEN_COSYVOICE_VOICE not configured")
     engine = build_engine(settings)
 
     async def run() -> bytes:
@@ -74,11 +72,11 @@ def test_real_playback_device_available() -> None:
 
 def test_audio_cpp_real_stream() -> None:
     """Real audio.cpp server (external service): start audiocpp_server first."""
-    from presenter.app import _audio_cpp_engine
+    from lumen.app import _audio_cpp_engine
 
     settings = _settings()
     if not (settings.audio_cpp_model and settings.audio_cpp_voice_ref):
-        pytest.skip("PRESENTER_AUDIO_CPP_MODEL / PRESENTER_AUDIO_CPP_VOICE_REF not set")
+        pytest.skip("LUMEN_AUDIO_CPP_MODEL / LUMEN_AUDIO_CPP_VOICE_REF not set")
     engine = _audio_cpp_engine(settings)
 
     async def run() -> bytes | None:

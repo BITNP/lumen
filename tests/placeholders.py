@@ -14,9 +14,9 @@ import zlib
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
-from presenter.playback import PlayerSink
-from presenter.presentation import PresentationBridge
-from presenter.tts import TtsError
+from lumen.playback import PlayerSink
+from lumen.presentation import PresentationBridge
+from lumen.tts import TtsError
 
 SILENT_RATE_BYTES = 32_000  # 16 kHz mono s16le
 
@@ -120,14 +120,14 @@ class FakeEngine:
 
 
 class RecordingClient:
-    """Stands in for PresenterClient inside PresenterApp tests."""
+    """Stands in for LumenClient inside LumenApp tests."""
 
     def __init__(self) -> None:
         self.inputs: list[dict] = []
         self.results: list[tuple[str, str]] = []
 
     async def send_input(
-        self, content: str, *, source: str = "presenter", metadata: dict | None = None
+        self, content: str, *, source: str = "lumen", metadata: dict | None = None
     ) -> None:
         self.inputs.append(
             {"content": content, "source": source, "metadata": metadata or {}}

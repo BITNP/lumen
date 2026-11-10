@@ -9,7 +9,7 @@ import json
 
 import websockets
 
-from presenter.presentation import PresentationBridge
+from lumen.presentation import PresentationBridge
 
 
 def test_bridge_drops_without_clients_and_ignores_upstream() -> None:

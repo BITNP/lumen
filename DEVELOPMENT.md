@@ -1,6 +1,6 @@
-# raspberrygirl-presenter 开发者文档
+# lumen 开发者文档
 
-本文面向**开发 presenter 的人**：进程形态与内部协议、TTS 降级策略、舞台视觉、
+本文面向**开发 lumen 的人**：进程形态与内部协议、TTS 降级策略、舞台视觉、
 里程碑与测试。安装、配置、运行、输出单元契约与 deck 准备请看用户文档
 [README.md](README.md)；术语见 [GLOSSARY.md](GLOSSARY.md)，决策见
 [docs/adr/](docs/adr/)。
@@ -14,7 +14,7 @@
   `status_query`；发 `input` 帧（唯一一种 `queue_finished`，ADR-0005）。断线按指数
   退避重连。控制单元 stop 不掐正在播放的队头，只丢弃未开播任务并布防无缝接管。
 - **呈现进程**（`godot/`，Godot 4.6 + gd_cubism）：纯呈现、纯展示面（无任何用户
-  可操作元素）。经本机 presentation bridge（`127.0.0.1:PRESENTER_BRIDGE_PORT`
+  可操作元素）。经本机 presentation bridge（`127.0.0.1:LUMEN_BRIDGE_PORT`
   上的 WebSocket）接收字幕揭示、表情/动作、PPT 指令，上行只有连接握手。
   bridge 协议是模块内部实现，与 waycast 无关。
   字幕播完后保留在气泡上，直到下一条字幕开始揭示才被替换（轮次结束不清空）；
@@ -28,14 +28,14 @@
   残留时**不要把 `.godot` 与 `__pycache__`/`.ruff_cache` 等一并删除**；误删后
   用 `godot --headless --path godot/ --import` 重建即可（资产与 `.import`
   sidecar 均在 git 内，缓存本身可再生）。
-- **句间停顿**：上一句播完到下一句开口之间至少保持 `PRESENTER_SENTENCE_GAP_SECONDS`
+- **句间停顿**：上一句播完到下一句开口之间至少保持 `LUMEN_SENTENCE_GAP_SECONDS`
   （默认 1.0，0 = 关闭）的停顿，期间屏上仍是上一句全文字幕。这是**最少间隔**而非
   额外延迟：下一句合成等待本身计入间隔（合成慢于间隔就不再等），每轮首句不等，
   无缝接管的开播不等（接管以立即性优先，ADR-0008）。
 
 ## TTS 引擎与降级（ADR-0001）
 
-`PRESENTER_TTS_ENGINE=auto|cosyvoice|audio_cpp`（默认 `auto`；**本机部署定为
+`LUMEN_TTS_ENGINE=auto|cosyvoice|audio_cpp`（默认 `auto`；**本机部署定为
 `audio_cpp`**：TTS 与 voice-input 的 ASR 都由 audio.cpp@8080 提供）：
 
 - **cosyvoice**（云）：DashScope 音色复刻，需 API key 与克隆 voice id。
@@ -46,8 +46,8 @@
   是**外部服务**，须自行启动（本机探 `127.0.0.1:8080`），宿主只探 `/health`、
   绝不拉起它。
 - **auto**：云为主。某句在**出声前**失败则透明地换另一引擎重试（听感无断档）；
-  云连续失败 `PRESENTER_TTS_FALLBACK_AFTER`（默认 3）句后降级为本地优先；降级冷却
-  `PRESENTER_TTS_RETRY_AFTER_SECONDS`（默认 60）秒后下一句先回探云端，成功即恢复。
+  云连续失败 `LUMEN_TTS_FALLBACK_AFTER`（默认 3）句后降级为本地优先；降级冷却
+  `LUMEN_TTS_RETRY_AFTER_SECONDS`（默认 60）秒后下一句先回探云端，成功即恢复。
   已出声后失败不重试（绝不重复播音），直接报错 result。status 的 `tts_engine`
   实时反映当前生效引擎。
 
@@ -83,7 +83,7 @@
   （soffice + pdftoppm，含 manifest 校验，支持 `--first/--last` 页范围）；Agent 在单元的 `ppt` 字段携带
   `open_deck/goto/next/prev/close` 指令，随句按序执行；开片/收片播放舞台联动动画
   （见上节"舞台视觉"）；deck 状态进 status 与
-  `queue_finished`，失败以异步 error result 回报且不断句。`PRESENTER_DECKS_DIR` 指定根目录。
+  `queue_finished`，失败以异步 error result 回报且不断句。`LUMEN_DECKS_DIR` 指定根目录。
 - **M4（已完成，真实合成冒烟待模型下载后在有服务的环境执行）**：audio.cpp 本地兜底
   TTS + 自动降级（ADR-0001），详见上文。
 - **M5（已完成，真实讲解冒烟待有服务的环境执行）**：逐页文本进 deck（ADR-0006/0007）。
@@ -92,7 +92,7 @@
   让它能"看着页讲"，且人工定制讲稿与内容描述互不干扰。
 - **M6（已完成）**：以播放为中心重写合成/播放/字幕管线（ADR-0008）：统一**播放队列**
   + 无深度上限的后台串行**预合成**（取代 M1 的 lookahead=1 预取）、一切表现事件与
-  **开播**同步、stop 改为不掐正在播放队头的**无缝接管**。实现在 `presenter/playqueue.py`
+  **开播**同步、stop 改为不掐正在播放队头的**无缝接管**。实现在 `lumen/playqueue.py`
   （任务表 + 合成 worker + 播放 worker，50ms tick 轮询协调），`app.py` 只剩 hub 胶水。
   实现取代 ADR-0003 的旧打断/轮次语义（ADR-0003 其余内容仍有效）。
 
@@ -103,5 +103,5 @@
   `uv run --locked pytest -q -m "not real"`
 - 真实冒烟（开发机：有 DashScope 凭据、有音频输出、可选 Godot 窗口与已启动的
   audiocpp_server）：`uv run --locked pytest -q -m real`。全链路（waycast 核心 +
-  真实模型 + presenter）的验收步骤见 `tests/test_smoke_real.py` 模块文档。
+  真实模型 + lumen）的验收步骤见 `tests/test_smoke_real.py` 模块文档。
 - 一律真实实现验证；假引擎/无声播放器等占位只存在于 `tests/`。

@@ -15,7 +15,7 @@ Presentation process -> host: {"type": "hello"} and nothing else. The window
 is a pure display surface: it takes no user input and produces no input
 frames (ADR-0005); frames the bridge receives from it are ignored.
 
-If PRESENTER_GODOT_PATH is configured the bridge also supervises the Godot
+If LUMEN_GODOT_PATH is configured the bridge also supervises the Godot
 process: exit or crash restarts it with exponential backoff; while no client
 is attached, presentation commands are dropped and status reports
 presentation_available=false (the host keeps speaking regardless).
@@ -39,7 +39,7 @@ RestartGodot = Callable[[], "asyncio.Task[None] | None"]
 
 
 class BridgeSink(Protocol):
-    """What PresenterApp needs from the presentation bridge; tests record."""
+    """What LumenApp needs from the presentation bridge; tests record."""
 
     @property
     def available(self) -> bool: ...

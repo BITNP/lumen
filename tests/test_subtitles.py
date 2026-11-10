@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from presenter.subtitles import (
+from lumen.subtitles import (
     estimate_duration_ms,
     reveal_units,
     reveal_visible_chars,

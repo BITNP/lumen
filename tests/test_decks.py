@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from lumen.decks import DeckError, DeckManager
+from lumen.units import PptCommand, parse_unit
 from placeholders import make_png, write_deck
-from presenter.decks import DeckError, DeckManager
-from presenter.units import PptCommand, parse_unit
 
 
 @pytest.fixture()
@@ -26,7 +26,7 @@ def _ppt(action: str, **fields: object) -> PptCommand:
 def test_relative_root_still_yields_absolute_image_path(
     root: Path, monkeypatch
 ) -> None:
-    # A relative PRESENTER_DECKS_DIR must not leak relative image paths to the
+    # A relative LUMEN_DECKS_DIR must not leak relative image paths to the
     # bridge: Godot resolves them against its own project dir (实机 bug).
     import os
 

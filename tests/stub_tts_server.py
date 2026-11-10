@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """TEST-ONLY stub of the audiocpp_server TTS service (never a deliverable).
 
-Speaks the real presenter wire format (see presenter.audiocpp) so the host
+Speaks the real lumen wire format (see lumen.audiocpp) so the host
 runs its genuine audio_cpp code path without a model behind it:
 
 - GET  /health              -> 200
@@ -9,9 +9,9 @@ runs its genuine audio_cpp code path without a model behind it:
                                speech.audio.done, [DONE]
 
 Every sentence becomes a 5-second, ~330 Hz sine wave at the request's model
-rate is irrelevant (the server rate is what the presenter configures,
-PRESENTER_AUDIO_CPP_SAMPLE_RATE=44100).  Chunks stream with a small delay to
-exercise the real SSE consumption.  Use for the no-TTS-service presenter
+rate is irrelevant (the server rate is what the lumen configures,
+LUMEN_AUDIO_CPP_SAMPLE_RATE=44100).  Chunks stream with a small delay to
+exercise the real SSE consumption.  Use for the no-TTS-service lumen
 e2e test only:
 
     uv run --locked python tests/stub_tts_server.py --port 8080
@@ -28,7 +28,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-SAMPLE_RATE = 44_100  # matches PRESENTER_AUDIO_CPP_SAMPLE_RATE in .env
+SAMPLE_RATE = 44_100  # matches LUMEN_AUDIO_CPP_SAMPLE_RATE in .env
 DURATION_SECONDS = 5.0
 FREQUENCY_HZ = 330.0
 AMPLITUDE = 6_000

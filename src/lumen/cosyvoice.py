@@ -29,7 +29,7 @@ with warnings.catch_warnings():
     import dashscope
     from dashscope.audio.tts_v2 import AudioFormat, ResultCallback, SpeechSynthesizer
 
-from presenter.tts import TtsError
+from lumen.tts import TtsError
 
 _MAX_AUDIO_BYTES = 16_000 * 2 * 180  # hard cap: 180 s of 16 kHz mono s16le
 

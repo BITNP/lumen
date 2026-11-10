@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Prepare a slide deck for the presenter: PPT/PPTX/PDF -> per-page PNG + texts + manifest.
+"""Prepare a slide deck for the lumen: PPT/PPTX/PDF -> per-page PNG + texts + manifest.
 
-Run inside the repo environment (needs the presenter package for the shared
+Run inside the repo environment (needs the lumen package for the shared
 bounds, plus system tools soffice and pdftoppm; pdftotext is optional and only
 needed for automatic page-summary extraction):
 
@@ -33,7 +33,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from presenter.decks import (
+from lumen.decks import (
     MAX_DIMENSION,
     MAX_MANIFEST_BYTES,
     MAX_PAGE_BYTES,

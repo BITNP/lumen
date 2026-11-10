@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from presenter.wire import PROTOCOL_VERSION, WireError, dumps, make_frame, parse_frame
+from lumen.wire import PROTOCOL_VERSION, WireError, dumps, make_frame, parse_frame
 
 
 def test_make_frame_roundtrip() -> None:
     frame = make_frame(
-        "result", "presenter", {"module": "presenter", "status": "ok"}, request_id="r1"
+        "result", "lumen", {"module": "lumen", "status": "ok"}, request_id="r1"
     )
     assert frame["protocol_version"] == PROTOCOL_VERSION
     assert frame["type"] == "result"
