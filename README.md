@@ -56,7 +56,7 @@ godot --path godot/
 | `LUMEN_DECKS_DIR` | deck 根目录（留空则 `ppt` 指令报错不生效） |
 
 TTS 引擎取值：`cosyvoice` 走 DashScope 云合成；`audio_cpp` 走本机 audio.cpp
-服务（**本机部署定为 `audio_cpp`**：TTS 与 voice-input 的 ASR 都由
+服务（**本机部署定为 `audio_cpp`**：TTS 与 aria 的 ASR 都由
 audio.cpp@8080 提供，须自行启动，宿主只探 `/health`、绝不拉起它）；`auto`
 云为主、出声前失败透明换引擎、连续失败自动降级本地
 （策略细节见 [DEVELOPMENT.md](DEVELOPMENT.md#tts-引擎与降级adr-0001)）。

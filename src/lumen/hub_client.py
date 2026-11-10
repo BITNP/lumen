@@ -5,7 +5,7 @@ advertisement first, then input / result / status_result frames; it receives
 the capability acknowledgement, output_unit frames and status_query frames.
 The wire contract is mirrored locally in lumen.wire; no core imports.
 
-Unlike voice_input's input-only client, received output_unit frames are handed
+Unlike aria's input-only client, received output_unit frames are handed
 to an async on_unit callback and every handled unit is answered with a result
 frame (accept semantics, ADR-0002/0003).
 """

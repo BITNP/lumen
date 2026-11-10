@@ -36,7 +36,7 @@
 ## TTS 引擎与降级（ADR-0001）
 
 `LUMEN_TTS_ENGINE=auto|cosyvoice|audio_cpp`（默认 `auto`；**本机部署定为
-`audio_cpp`**：TTS 与 voice-input 的 ASR 都由 audio.cpp@8080 提供）：
+`audio_cpp`**：TTS 与 aria 的 ASR 都由 audio.cpp@8080 提供）：
 
 - **cosyvoice**（云）：DashScope 音色复刻，需 API key 与克隆 voice id。
 - **audio_cpp**（本地）：HTTP 调外部 `audiocpp_server` 的

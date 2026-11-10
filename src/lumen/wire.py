@@ -6,7 +6,7 @@ waycast/src/waycast/wire.py).  This local implementation mirrors that JSON
 envelope so the module has no code or package dependency on the core -- the
 microservice boundary is the wire, not Python imports.
 
-Unlike voice_input (input-only), the lumen is a ``kind="both"`` module on
+Unlike aria (input-only), the lumen is a ``kind="both"`` module on
 one full-duplex connection:
 
   lumen -> hub: capability (first frame), input, result, status_result

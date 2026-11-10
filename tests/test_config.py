@@ -1,4 +1,4 @@
-"""Environment loading and validation (mirrors the voice-input precedent)."""
+"""Environment loading and validation (mirrors the aria precedent)."""
 
 from __future__ import annotations
 
