@@ -8,9 +8,11 @@
 ## 形态（ADR-0002）
 
 - **宿主进程**（本仓库 Python 部分）：waycast 模块身份。连 hub `/ws/modules`（首帧
-  capability advertisement），收 `output_unit` 帧入**单元队列**顺序执行（合成→播放→
-  字幕），逐单元回 `result` 帧；应答 `status_query`；发 `input` 帧（唯一一种
-  `queue_finished`，ADR-0005）。断线按指数退避重连。
+  capability advertisement），收 `output_unit` 帧入**播放队列**（ADR-0008）：后台合成
+  worker 沿队列顺序串行预合成（引擎在飞 ≤1），播放 worker 只播队头、边合成边播；
+  PPT/emotion/motion/字幕/口型统一在**开播**瞬间派发。逐单元回 `result` 帧；应答
+  `status_query`；发 `input` 帧（唯一一种 `queue_finished`，ADR-0005）。断线按指数
+  退避重连。控制单元 stop 不掐正在播放的队头，只丢弃未开播任务并布防无缝接管。
 - **呈现进程**（`godot/`，Godot 4.6 + gd_cubism）：纯呈现、纯展示面（无任何用户
   可操作元素）。经本机 presentation bridge（`127.0.0.1:PRESENTER_BRIDGE_PORT`
   上的 WebSocket）接收字幕揭示、表情/动作、PPT 指令，上行只有连接握手。
@@ -20,7 +22,8 @@
   等待期（含首块数秒延迟）屏上保留上一句。
 - **句间停顿**：上一句播完到下一句开口之间至少保持 `PRESENTER_SENTENCE_GAP_SECONDS`
   （默认 1.0，0 = 关闭）的停顿，期间屏上仍是上一句全文字幕。这是**最少间隔**而非
-  额外延迟：下一句合成等待本身计入间隔（合成慢于间隔就不再等），每轮首句不等。
+  额外延迟：下一句合成等待本身计入间隔（合成慢于间隔就不再等），每轮首句不等，
+  无缝接管的开播不等（接管以立即性优先，ADR-0008）。
 
 ## TTS 引擎与降级（ADR-0001）
 
@@ -79,11 +82,16 @@
   manifest 1.2.0 为每页携带**页面内容**（pdftotext 抽取，可覆盖）与**建议讲稿**
   （`--scripts` 撰写），两者随 `queue_finished` 与 status 送达无视觉的核心 Agent，
   让它能"看着页讲"，且人工定制讲稿与内容描述互不干扰。
+- **M6（已完成）**：以播放为中心重写合成/播放/字幕管线（ADR-0008）：统一**播放队列**
+  + 无深度上限的后台串行**预合成**（取代 M1 的 lookahead=1 预取）、一切表现事件与
+  **开播**同步、stop 改为不掐正在播放队头的**无缝接管**。实现在 `presenter/playqueue.py`
+  （任务表 + 合成 worker + 播放 worker，50ms tick 轮询协调），`app.py` 只剩 hub 胶水。
+  实现取代 ADR-0003 的旧打断/轮次语义（ADR-0003 其余内容仍有效）。
 
 ## 测试
 
-- 离线单测（wire、schema/单元、字幕数学、队列语义、hub 客户端对 tests/ 内的
-  test-only 假 hub 服务端）：
+- 离线单测（wire、schema/单元、字幕数学、播放队列语义（stop/无缝接管/开播同步）、
+  hub 客户端对 tests/ 内的 test-only 假 hub 服务端）：
   `uv run --locked pytest -q -m "not real"`
 - 真实冒烟（开发机：有 DashScope 凭据、有音频输出、可选 Godot 窗口与已启动的
   audiocpp_server）：`uv run --locked pytest -q -m real`。全链路（waycast 核心 +

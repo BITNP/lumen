@@ -23,12 +23,14 @@
 | --- | --- |
 | `speech` | 要朗读的一句文本（TTS + 播放 + 字幕文本来源） |
 | `subtitle` | 字幕文本，缺省 = `speech` |
-| `emotion` | 表情标签，驱动 Live2D 表情 clip（nod/shake_head/wink） |
-| `motion` | 动作标签，驱动命名动作（wave/point/sweat/no） |
-| `ppt` | 翻页指令 `{action: open_deck|goto|next|prev|close, deck, page}`，在该句开口前执行 |
-| `control` | 目前仅 `"stop"`：清空单元队列并立即停止当前播放（ADR-0003） |
+| `emotion` | 表情标签，驱动 Live2D 表情 clip（nod/shake_head/wink），在该句开播瞬间执行 |
+| `motion` | 动作标签，驱动命名动作（wave/point/sweat/no），在该句开播瞬间执行 |
+| `ppt` | 翻页指令 `{action: open_deck|goto|next|prev|close, deck, page}`，在该句开播瞬间执行 |
+| `control` | 目前仅 `"stop"`（ADR-0008）：取消在途预合成并丢弃所有尚未开播的任务；正在播放的队头不被掐，stop 后的新句在其音频就绪的刹那无缝接管开播。打断必须首发 stop 单元 |
 
-hub 在派发前按本模块声明的 schema 校验单元。
+hub 在派发前按本模块声明的 schema 校验单元。单元进入有界的播放队列
+（`PRESENTER_QUEUE_MAX`，默认 64）：队满时该单元被回 error result，队列本身
+按到达顺序完整执行。
 
 ## 运行
 
@@ -49,6 +51,7 @@ godot --path godot/
 | `PRESENTER_DASHSCOPE_API_KEY` 等 | CosyVoice 云合成凭据与 voice id |
 | `PRESENTER_AUDIO_CPP_URL` 等 | 本地 audio.cpp 服务地址、模型与音色参考（外部服务，须自行启动 `audiocpp_server`） |
 | `PRESENTER_SENTENCE_GAP_SECONDS` | 句间最少停顿（默认 1.0，0 = 关闭） |
+| `PRESENTER_QUEUE_MAX` | 播放队列容量（默认 64，队满的单元回 error result） |
 | `PRESENTER_GODOT_PATH` | 配置后由宿主负责启动/重启 Godot 呈现窗口；留空须手动启动 |
 | `PRESENTER_DECKS_DIR` | deck 根目录（留空则 `ppt` 指令报错不生效） |
 
