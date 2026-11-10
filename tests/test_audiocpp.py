@@ -4,6 +4,7 @@ verbatim (speech.audio.delta / speech.audio.done / [DONE]), plus the resampler.
 The real-service behaviour is covered by the real-marked smoke test; this file
 locks the HTTP/SSE contract framing and the 24k -> 16k resampling.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,7 +31,9 @@ def _sse_bytes(events: list[dict[str, Any]], *, done: bool = True) -> bytes:
 
 
 def _server(scope: dict[str, Any], status: str, body: bytes) -> Any:
-    async def handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    async def handler(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         head = await reader.readuntil(b"\r\n\r\n")
         match = re.search(rb"content-length: (\d+)", head.lower())
         assert match is not None
@@ -177,7 +180,9 @@ def test_linear_resampler_preserves_value_and_length() -> None:
     constant = (1000).to_bytes(2, "little", signed=True) * 240
     out = resampler.feed(constant) + resampler.flush()
     assert len(out) == 320  # 240 samples -> 160 samples
-    values = {int.from_bytes(out[i : i + 2], "little", signed=True) for i in range(0, 320, 2)}
+    values = {
+        int.from_bytes(out[i : i + 2], "little", signed=True) for i in range(0, 320, 2)
+    }
     assert values == {1000}
 
 
@@ -191,7 +196,9 @@ def test_engine_ignores_ambient_proxy_env(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("HTTP_PROXY", "socks://127.0.0.1:1080")
 
     async def scenario() -> bool:
-        engine = AudioCppEngine(base_url="http://127.0.0.1:1", model="m", voice_ref="/tmp/x.wav")
+        engine = AudioCppEngine(
+            base_url="http://127.0.0.1:1", model="m", voice_ref="/tmp/x.wav"
+        )
         try:
             return await engine.health()  # dead port: False, but construction survived
         finally:

@@ -21,6 +21,7 @@ with summaries, "1.1.0" scripts-only, "1.0.0" without texts.  The Agent opens
 the result with {"action":"open_deck","deck":"<name>"} and receives both texts
 on every queue_finished.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -48,16 +49,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("input", type=Path, help="PPT/PPTX/ODP/PDF file to export")
     parser.add_argument("--name", help="deck name (default: sanitized file stem)")
-    parser.add_argument("--out", type=Path, default=Path("decks"), help="decks root dir")
+    parser.add_argument(
+        "--out", type=Path, default=Path("decks"), help="decks root dir"
+    )
     parser.add_argument("--dpi", type=int, default=120, help="render resolution")
-    parser.add_argument("--first", type=int, default=1, help="first page to export (1-based)")
-    parser.add_argument("--last", type=int, default=MAX_PAGES, help="last page to export")
+    parser.add_argument(
+        "--first", type=int, default=1, help="first page to export (1-based)"
+    )
+    parser.add_argument(
+        "--last", type=int, default=MAX_PAGES, help="last page to export"
+    )
     parser.add_argument(
         "--scripts",
         type=Path,
         help="JSON file of per-page texts: a list aligned with pages or a "
-        "{\"1\": …} page map; each value is a string (suggested script) or a "
-        "{\"summary\": \"…\", \"script\": \"…\"} object (ADR-0007)",
+        '{"1": …} page map; each value is a string (suggested script) or a '
+        '{"summary": "…", "script": "…"} object (ADR-0007)',
     )
     parser.add_argument(
         "--no-scripts",
@@ -72,7 +79,9 @@ def main() -> int:
         return fail(f"input not found: {source}")
     suffix = source.suffix.lower()
     if suffix not in OFFICE_SUFFIXES:
-        return fail(f"unsupported input type {suffix!r}; want one of {sorted(OFFICE_SUFFIXES)}")
+        return fail(
+            f"unsupported input type {suffix!r}; want one of {sorted(OFFICE_SUFFIXES)}"
+        )
     if args.first < 1 or args.last < args.first:
         return fail("bad page range: need 1 <= --first <= --last")
 
@@ -87,7 +96,9 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="prepare-deck-") as tmp:
         pdf = to_pdf(source, Path(tmp)) if suffix != ".pdf" else source
-        pages = render_pages(pdf, Path(tmp), dpi=args.dpi, first=args.first, last=args.last)
+        pages = render_pages(
+            pdf, Path(tmp), dpi=args.dpi, first=args.first, last=args.last
+        )
         validate_pages(pages)
         summaries: list[str] = []
         scripts: list[str] = []
@@ -100,8 +111,10 @@ def main() -> int:
         if summaries or scripts:
             missing = sum(1 for text in summaries if not text)
             if missing:
-                print(f"note: {missing} page(s) have no summary text; "
-                      "consider --scripts for decks without a usable text layer")
+                print(
+                    f"note: {missing} page(s) have no summary text; "
+                    "consider --scripts for decks without a usable text layer"
+                )
         target.mkdir(parents=True)
         manifest_pages = []
         for index, page in enumerate(pages, start=1):
@@ -150,9 +163,19 @@ def sanitize_name(stem: str) -> str:
 def to_pdf(source: Path, workdir: Path) -> Path:
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if soffice is None:
-        raise SystemExit("soffice (LibreOffice) is required to convert office documents")
+        raise SystemExit(
+            "soffice (LibreOffice) is required to convert office documents"
+        )
     subprocess.run(
-        [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(workdir), str(source)],
+        [
+            soffice,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(workdir),
+            str(source),
+        ],
         check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -164,13 +187,25 @@ def to_pdf(source: Path, workdir: Path) -> Path:
     return pdf
 
 
-def render_pages(pdf: Path, workdir: Path, *, dpi: int, first: int, last: int) -> list[Path]:
+def render_pages(
+    pdf: Path, workdir: Path, *, dpi: int, first: int, last: int
+) -> list[Path]:
     if shutil.which("pdftoppm") is None:
         raise SystemExit("pdftoppm (poppler-utils) is required to render pages")
     prefix = workdir / "page"
     subprocess.run(
-        ["pdftoppm", "-png", "-r", str(dpi), "-f", str(first), "-l", str(last),
-         str(pdf), str(prefix)],
+        [
+            "pdftoppm",
+            "-png",
+            "-r",
+            str(dpi),
+            "-f",
+            str(first),
+            "-l",
+            str(last),
+            str(pdf),
+            str(prefix),
+        ],
         check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -192,8 +227,10 @@ def render_pages(pdf: Path, workdir: Path, *, dpi: int, first: int, last: int) -
 def extract_summaries(pdf: Path, *, first: int, count: int) -> list[str]:
     """Per-page text layer via pdftotext (form-feed separated); [] if unavailable."""
     if shutil.which("pdftotext") is None:
-        print("note: pdftotext not found; deck will have no summaries "
-              "(install poppler-utils or pass --scripts)")
+        print(
+            "note: pdftotext not found; deck will have no summaries "
+            "(install poppler-utils or pass --scripts)"
+        )
         return []
     result = subprocess.run(
         ["pdftotext", "-f", str(first), "-l", str(first + count - 1), str(pdf), "-"],
@@ -202,7 +239,9 @@ def extract_summaries(pdf: Path, *, first: int, count: int) -> list[str]:
         timeout=300,
     )
     if result.returncode != 0:
-        print("note: pdftotext failed; deck will have no summaries (pass --scripts instead)")
+        print(
+            "note: pdftotext failed; deck will have no summaries (pass --scripts instead)"
+        )
         return []
     chunks = result.stdout.decode("utf-8", "replace").split("\f")
     summaries = [normalize_page_text(chunk) for chunk in chunks[:count]]
@@ -231,7 +270,9 @@ def apply_script_overrides(
         elif isinstance(value, dict):
             unknown = set(value) - {"summary", "script"}
             if unknown:
-                raise SystemExit(f"--scripts page {page} has unknown keys: {sorted(unknown)}")
+                raise SystemExit(
+                    f"--scripts page {page} has unknown keys: {sorted(unknown)}"
+                )
             for key, target in (("summary", merged_summaries), ("script", scripts)):
                 if key in value:
                     text = value[key]
@@ -243,7 +284,9 @@ def apply_script_overrides(
 
     if isinstance(data, list):
         if len(data) != count:
-            raise SystemExit(f"--scripts list has {len(data)} entries, deck has {count} pages")
+            raise SystemExit(
+                f"--scripts list has {len(data)} entries, deck has {count} pages"
+            )
         for index, value in enumerate(data, start=1):
             assign(index, value)
     elif isinstance(data, dict):
@@ -270,12 +313,16 @@ def validate_pages(pages: list[Path]) -> None:
     for page in pages:
         size = page.stat().st_size
         if size > MAX_PAGE_BYTES:
-            raise SystemExit(f"{page.name} is {size} bytes, over the {MAX_PAGE_BYTES} limit")
+            raise SystemExit(
+                f"{page.name} is {size} bytes, over the {MAX_PAGE_BYTES} limit"
+            )
         header = page.read_bytes()[:24]
         width = int.from_bytes(header[16:20], "big")
         height = int.from_bytes(header[20:24], "big")
         if width > MAX_DIMENSION or height > MAX_DIMENSION:
-            raise SystemExit(f"{page.name} is {width}x{height}, over {MAX_DIMENSION}px; lower --dpi")
+            raise SystemExit(
+                f"{page.name} is {width}x{height}, over {MAX_DIMENSION}px; lower --dpi"
+            )
 
 
 def fail(message: str) -> int:

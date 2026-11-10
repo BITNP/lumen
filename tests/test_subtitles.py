@@ -1,4 +1,5 @@
 """Linear reveal subtitle math."""
+
 from __future__ import annotations
 
 from presenter.subtitles import (
@@ -20,7 +21,9 @@ def test_reveal_progresses_and_saturates() -> None:
     text = "树莓娘会按句说话"
     length = len(text)
     duration = 2000
-    steps = [reveal_visible_chars(text, ms, duration) for ms in range(0, duration + 500, 250)]
+    steps = [
+        reveal_visible_chars(text, ms, duration) for ms in range(0, duration + 500, 250)
+    ]
     assert steps == sorted(steps)
     assert steps[0] == 0
     assert steps[-1] == length

@@ -8,6 +8,7 @@ degrades to the fallback.  Once `retry_after_seconds` have passed, the next
 sentence probes the primary again and a clean stream restores it.  `name`
 reports the currently active engine for status.
 """
+
 from __future__ import annotations
 
 import asyncio

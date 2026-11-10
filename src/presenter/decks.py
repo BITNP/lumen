@@ -14,6 +14,7 @@ command that shows or hides a slide.  Every failure raises DeckError; the
 caller reports it as an async error result without breaking the speech
 pipeline.
 """
+
 from __future__ import annotations
 
 import json
@@ -99,11 +100,15 @@ class DeckManager:
                 raise DeckError(f"page {target} out of range 1..{len(self._pages)}")
         elif command.action == "next":
             if self._page >= len(self._pages):
-                raise DeckError(f"already on last page ({self._page}/{len(self._pages)})")
+                raise DeckError(
+                    f"already on last page ({self._page}/{len(self._pages)})"
+                )
             target = self._page + 1
         else:  # prev
             if self._page <= 1:
-                raise DeckError(f"already on first page ({self._page}/{len(self._pages)})")
+                raise DeckError(
+                    f"already on first page ({self._page}/{len(self._pages)})"
+                )
             target = self._page - 1
         page_path = self._validated_page(self._deck, self._pages[target - 1])
         self._page = target  # commit only after the page file checks out
@@ -181,7 +186,11 @@ def _read_manifest(path: Path) -> tuple[list[str], list[str], list[str]]:
         pages.append(item)
     if len(set(pages)) != len(pages):
         raise DeckError("deck manifest pages list is invalid")
-    return pages, _text_list(manifest, "scripts", pages), _text_list(manifest, "summaries", pages)
+    return (
+        pages,
+        _text_list(manifest, "scripts", pages),
+        _text_list(manifest, "summaries", pages),
+    )
 
 
 def _text_list(manifest: dict[str, Any], key: str, pages: list[str]) -> list[str]:

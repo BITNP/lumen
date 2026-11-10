@@ -4,6 +4,7 @@ A fake sounddevice module stands in for the PortAudio binding (src imports it
 lazily inside the writer thread); fake writes are non-blocking with a tiny
 sleep so a long chunk stays in flight long enough to be cut mid-write.
 """
+
 from __future__ import annotations
 
 import contextlib

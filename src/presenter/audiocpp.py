@@ -13,6 +13,7 @@ Qwen3-TTS: 24 kHz), so chunks are linearly resampled down to the module-wide
 16 kHz TtsEngine contract. audio.cpp is an external service: the host probes
 /health but never spawns it.
 """
+
 from __future__ import annotations
 
 import base64
@@ -53,18 +54,17 @@ class _LinearResampler:
         while self._position + 1.0 < len(self._samples):
             index = int(self._position)
             fraction = self._position - index
-            value = self._samples[index] + (
-                self._samples[index + 1] - self._samples[index]
-            ) * fraction
+            value = (
+                self._samples[index]
+                + (self._samples[index + 1] - self._samples[index]) * fraction
+            )
             out.append(max(-32_768, min(32_767, round(value))))
             self._position += self._step
         consumed = int(self._position)
         if consumed:
             del self._samples[:consumed]
             self._position -= consumed
-        return b"".join(
-            value.to_bytes(2, "little", signed=True) for value in out
-        )
+        return b"".join(value.to_bytes(2, "little", signed=True) for value in out)
 
     def flush(self) -> bytes:
         if len(self._leftover) == 1:

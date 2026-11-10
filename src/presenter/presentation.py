@@ -20,6 +20,7 @@ process: exit or crash restarts it with exponential backoff; while no client
 is attached, presentation commands are dropped and status reports
 presentation_available=false (the host keeps speaking regardless).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -62,10 +63,10 @@ class PresentationBridge:
         return bool(self._clients)
 
     async def start(self) -> None:
-        self._server = await websockets.serve(
-            self._handle, self._host, self._port
+        self._server = await websockets.serve(self._handle, self._host, self._port)
+        LOGGER.info(
+            "presentation bridge listening on ws://%s:%d", self._host, self._port
         )
-        LOGGER.info("presentation bridge listening on ws://%s:%d", self._host, self._port)
 
     async def stop(self) -> None:
         if self._server is not None:
@@ -130,7 +131,9 @@ class GodotSupervisor:
             proc: asyncio.subprocess.Process | None = None
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    self._godot_path, "--path", self._project_dir,
+                    self._godot_path,
+                    "--path",
+                    self._project_dir,
                     stdout=asyncio.subprocess.DEVNULL,
                     stderr=asyncio.subprocess.DEVNULL,
                 )

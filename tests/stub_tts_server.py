@@ -16,6 +16,7 @@ e2e test only:
 
     uv run --locked python tests/stub_tts_server.py --port 8080
 """
+
 from __future__ import annotations
 
 import argparse
@@ -109,8 +110,11 @@ def main() -> None:
     args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     server.daemon_threads = True
-    print(f"[stub-tts] TEST-ONLY stub listening on 127.0.0.1:{args.port} "
-          f"({DURATION_SECONDS:.0f}s sine @ {SAMPLE_RATE} Hz)", flush=True)
+    print(
+        f"[stub-tts] TEST-ONLY stub listening on 127.0.0.1:{args.port} "
+        f"({DURATION_SECONDS:.0f}s sine @ {SAMPLE_RATE} Hz)",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,4 +1,5 @@
 """Unit schema (as the hub validates it pre-dispatch, A22) and unit parsing."""
+
 from __future__ import annotations
 
 import jsonschema
@@ -45,7 +46,9 @@ def test_parse_defaults_and_subtitle_fallback() -> None:
 def test_parse_stop_and_guards() -> None:
     assert parse_unit({"control": "stop"}).is_stop
     with pytest.raises(UnitError):
-        parse_unit({"subtitle": "只有字幕没有可执行字段"})  # speech/emotion/motion absent
+        parse_unit(
+            {"subtitle": "只有字幕没有可执行字段"}
+        )  # speech/emotion/motion absent
     with pytest.raises(UnitError):
         parse_unit({"control": "bogus"})
 
@@ -71,7 +74,9 @@ def test_ppt_schema() -> None:
 
 
 def test_parse_ppt() -> None:
-    unit = parse_unit({"speech": "第一页。", "ppt": {"action": "open_deck", "deck": "demo"}})
+    unit = parse_unit(
+        {"speech": "第一页。", "ppt": {"action": "open_deck", "deck": "demo"}}
+    )
     assert unit.ppt == PptCommand(action="open_deck", deck="demo", page=None)
     ppt_only = parse_unit({"ppt": {"action": "close"}})  # ppt alone is executable
     assert ppt_only.speech is None and ppt_only.ppt is not None

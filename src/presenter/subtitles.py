@@ -6,6 +6,7 @@ other non-latin run reveals per grapheme, latin/digits reveal per word, so a
 revealed prefix always ends on a unit boundary.  This mirrors the reveal-unit
 rule the previous Raspberry Girl core used for its subtitle channel.
 """
+
 from __future__ import annotations
 
 # Fallback speaking rate (reveal units per second) used before the true audio
@@ -64,4 +65,9 @@ def estimate_duration_ms(text: str, audio_bytes: int | None = None) -> int:
     return max(1, int(units / FALLBACK_UNITS_PER_SECOND * 1000))
 
 
-__all__ = ["FALLBACK_UNITS_PER_SECOND", "reveal_units", "reveal_visible_chars", "estimate_duration_ms"]
+__all__ = [
+    "FALLBACK_UNITS_PER_SECOND",
+    "reveal_units",
+    "reveal_visible_chars",
+    "estimate_duration_ms",
+]

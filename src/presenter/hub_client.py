@@ -9,6 +9,7 @@ Unlike voice_input's input-only client, received output_unit frames are handed
 to an async on_unit callback and every handled unit is answered with a result
 frame (accept semantics, ADR-0002/0003).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -99,7 +100,10 @@ class PresenterClient:
             "name": self._name,
             "kind": "both",
             "input": {"description": CAPABILITY_INPUT_DESCRIPTION},
-            "output": {"schema": OUTPUT_SCHEMA, "description": CAPABILITY_OUTPUT_DESCRIPTION},
+            "output": {
+                "schema": OUTPUT_SCHEMA,
+                "description": CAPABILITY_OUTPUT_DESCRIPTION,
+            },
             "status": {"enabled": True, "description": CAPABILITY_STATUS_DESCRIPTION},
         }
         try:

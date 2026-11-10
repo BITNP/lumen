@@ -4,6 +4,7 @@ The test server stands in for the waycast hub: capability handshake with an
 output schema, pushed output_unit answered by a result frame, status_query
 answered by a correlated status_result, and outbound input frames.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -28,7 +29,9 @@ def _fake_hub(received: list[Any]) -> Any:
         await ws.send(dumps(make_frame("capability", MODULE_NAME, {"accepted": True})))
         await ws.send(dumps(make_frame("output_unit", MODULE_NAME, {"speech": "你好"})))
         received.append(("await_result", parse_frame(await ws.recv())))
-        await ws.send(dumps(make_frame("status_query", MODULE_NAME, {}, request_id="q1")))
+        await ws.send(
+            dumps(make_frame("status_query", MODULE_NAME, {}, request_id="q1"))
+        )
         received.append(("status", parse_frame(await ws.recv())))
         received.append(("input", parse_frame(await ws.recv())))
 
@@ -52,7 +55,10 @@ def test_both_handshake_and_frame_routing() -> None:
             status_provider=lambda: {"playing": False, "tts_engine": "fake"},
         ) as client:
             await asyncio.sleep(0.2)  # let the reader route unit + status frames
-            await client.send_input("树莓娘已完整播完本轮表达，共 2 句。", metadata={"event": "queue_finished"})
+            await client.send_input(
+                "树莓娘已完整播完本轮表达，共 2 句。",
+                metadata={"event": "queue_finished"},
+            )
             await asyncio.sleep(0.05)
         server.close()
         await server.wait_closed()
@@ -70,7 +76,11 @@ def test_both_handshake_and_frame_routing() -> None:
 
     result = received[1][1]
     assert result["type"] == "result"
-    assert result["payload"] == {"module": MODULE_NAME, "status": "ok", "detail": "queued"}
+    assert result["payload"] == {
+        "module": MODULE_NAME,
+        "status": "ok",
+        "detail": "queued",
+    }
 
     status = received[2][1]
     assert status["type"] == "status_result"

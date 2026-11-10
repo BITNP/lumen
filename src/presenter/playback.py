@@ -17,6 +17,7 @@ Aborted-but-counted samples keep written_seconds monotonic; every consumer
 takes differences against a started_at captured after the flush, so the
 discarded tail never skews subtitle pacing.
 """
+
 from __future__ import annotations
 
 import logging

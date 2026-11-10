@@ -5,6 +5,7 @@ closing the async iterator must cancel the in-flight synthesis.  Milestone M1
 ships CosyVoiceEngine (cloud); the audio.cpp fallback (M4) is just a second
 implementation of this protocol.
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator

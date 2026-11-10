@@ -1,6 +1,7 @@
 """Presentation bridge: availability tracking, command fan-out, and the
 display-only contract (ADR-0005): frames from the presentation process are
 received but never turn into anything upstream."""
+
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +18,9 @@ def test_bridge_drops_without_clients_and_ignores_upstream() -> None:
         await bridge.start()
         port = bridge._server.sockets[0].getsockname()[1]  # type: ignore[union-attr]
         assert bridge.available is False
-        await bridge.send({"type": "subtitle_clear"})  # no window: dropped, must not raise
+        await bridge.send(
+            {"type": "subtitle_clear"}
+        )  # no window: dropped, must not raise
 
         async with websockets.connect(f"ws://127.0.0.1:{port}") as client:
             await client.send(json.dumps({"type": "hello"}))

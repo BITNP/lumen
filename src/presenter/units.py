@@ -4,6 +4,7 @@ The hub already validated the payload against OUTPUT_SCHEMA before dispatch, so
 parsing here is defensive: a unit that cannot be understood is rejected with a
 reason that goes straight into the error output result (ADR-0002).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -84,7 +85,9 @@ def _parse_ppt(value: Any) -> PptCommand | None:
         raise UnitError(f"unknown ppt action: {action!r}")
     deck = _text(ppt.get("deck"))
     page = ppt.get("page")
-    if page is not None and (not isinstance(page, int) or isinstance(page, bool) or page < 1):
+    if page is not None and (
+        not isinstance(page, int) or isinstance(page, bool) or page < 1
+    ):
         raise UnitError("ppt page must be a positive integer")
     if action == "open_deck" and deck is None:
         raise UnitError("ppt open_deck requires a deck name")

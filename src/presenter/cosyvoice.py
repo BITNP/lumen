@@ -6,6 +6,7 @@ are bridged into an async generator via asyncio queues.  The call shape
 cancel via streaming_cancel + close in finally) follows the previously
 production-verified Raspberry Girl core adapter.
 """
+
 from __future__ import annotations
 
 import asyncio

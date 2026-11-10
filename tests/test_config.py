@@ -1,4 +1,5 @@
 """Environment loading and validation (mirrors the voice-input precedent)."""
+
 from __future__ import annotations
 
 import pytest
@@ -23,12 +24,14 @@ def test_defaults() -> None:
 
 
 def test_sentence_gap_override_and_validation() -> None:
-    assert load_settings(
-        _env(PRESENTER_SENTENCE_GAP_SECONDS="0")
-    ).sentence_gap_seconds == 0.0
-    assert load_settings(
-        _env(PRESENTER_SENTENCE_GAP_SECONDS="2.5")
-    ).sentence_gap_seconds == 2.5
+    assert (
+        load_settings(_env(PRESENTER_SENTENCE_GAP_SECONDS="0")).sentence_gap_seconds
+        == 0.0
+    )
+    assert (
+        load_settings(_env(PRESENTER_SENTENCE_GAP_SECONDS="2.5")).sentence_gap_seconds
+        == 2.5
+    )
     with pytest.raises(ConfigError):
         load_settings(_env(PRESENTER_SENTENCE_GAP_SECONDS="-0.1"))
     with pytest.raises(ConfigError):
@@ -43,8 +46,12 @@ def test_hub_url_required_and_ws_scheme() -> None:
 
 
 def test_engine_choice_validation() -> None:
-    assert load_settings(_env(PRESENTER_TTS_ENGINE="cosyvoice")).tts_engine == "cosyvoice"
-    assert load_settings(_env(PRESENTER_TTS_ENGINE="audio_cpp")).tts_engine == "audio_cpp"
+    assert (
+        load_settings(_env(PRESENTER_TTS_ENGINE="cosyvoice")).tts_engine == "cosyvoice"
+    )
+    assert (
+        load_settings(_env(PRESENTER_TTS_ENGINE="audio_cpp")).tts_engine == "audio_cpp"
+    )
     with pytest.raises(ConfigError):
         load_settings(_env(PRESENTER_TTS_ENGINE="kittyvoice"))
 

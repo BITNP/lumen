@@ -1,4 +1,5 @@
 """Deck state machine: manifest validation, page flow, failure semantics."""
+
 from __future__ import annotations
 
 import json
@@ -22,7 +23,9 @@ def _ppt(action: str, **fields: object) -> PptCommand:
     return unit.ppt
 
 
-def test_relative_root_still_yields_absolute_image_path(root: Path, monkeypatch) -> None:
+def test_relative_root_still_yields_absolute_image_path(
+    root: Path, monkeypatch
+) -> None:
     # A relative PRESENTER_DECKS_DIR must not leak relative image paths to the
     # bridge: Godot resolves them against its own project dir (实机 bug).
     import os
@@ -98,9 +101,7 @@ def test_manifest_rejections(tmp_path: Path) -> None:
             manifest["scripts"] = scripts_value
         if summaries_value is not None:
             manifest["summaries"] = summaries_value
-        (directory / "manifest.json").write_text(
-            json.dumps(manifest), encoding="utf-8"
-        )
+        (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         return tmp_path
 
     manager = DeckManager(manifest_case(["001.png"], version="2.0.0"))
@@ -112,10 +113,14 @@ def test_manifest_rejections(tmp_path: Path) -> None:
     manager = DeckManager(manifest_case([f"{i:03d}.png" for i in range(1, 202)]))
     with pytest.raises(DeckError, match="pages list"):
         manager.apply(_ppt("open_deck", deck="case"))
-    manager = DeckManager(manifest_case(["001.png"], version="1.1.0", scripts_value=["a", "b"]))
+    manager = DeckManager(
+        manifest_case(["001.png"], version="1.1.0", scripts_value=["a", "b"])
+    )
     with pytest.raises(DeckError, match="scripts list"):
         manager.apply(_ppt("open_deck", deck="case"))
-    manager = DeckManager(manifest_case(["001.png"], version="1.1.0", scripts_value=[42]))
+    manager = DeckManager(
+        manifest_case(["001.png"], version="1.1.0", scripts_value=[42])
+    )
     with pytest.raises(DeckError, match="scripts list"):
         manager.apply(_ppt("open_deck", deck="case"))
     manager = DeckManager(

@@ -5,6 +5,7 @@ Hub connection settings mirror the waycast module contract; everything
 module-local is prefixed PRESENTER_.  Credentials only ever live in the local
 environment, never in source, docs, commits or logs.
 """
+
 from __future__ import annotations
 
 import os
@@ -92,7 +93,9 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     source = os.environ if env is None else env
     hub_url = _required(source, WAYCAST_HUB_URL_KEY)
     _require_ws_scheme(hub_url, WAYCAST_HUB_URL_KEY)
-    engine = source.get(TTS_ENGINE_KEY, DEFAULT_TTS_ENGINE).strip() or DEFAULT_TTS_ENGINE
+    engine = (
+        source.get(TTS_ENGINE_KEY, DEFAULT_TTS_ENGINE).strip() or DEFAULT_TTS_ENGINE
+    )
     if engine not in ("auto", "cosyvoice", "audio_cpp"):
         raise ConfigError(TTS_ENGINE_KEY, "must be auto, cosyvoice or audio_cpp")
     return Settings(
@@ -112,9 +115,14 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         audio_cpp_url=_audio_cpp_url(source),
         audio_cpp_model=_optional_text(source.get(AUDIO_CPP_MODEL_KEY)),
         audio_cpp_voice_ref=_optional_text(source.get(AUDIO_CPP_VOICE_REF_KEY)),
-        audio_cpp_reference_text=_optional_text(source.get(AUDIO_CPP_REFERENCE_TEXT_KEY)),
+        audio_cpp_reference_text=_optional_text(
+            source.get(AUDIO_CPP_REFERENCE_TEXT_KEY)
+        ),
         audio_cpp_sample_rate=_parse_int(
-            source, AUDIO_CPP_SAMPLE_RATE_KEY, DEFAULT_AUDIO_CPP_SAMPLE_RATE, minimum=8_000
+            source,
+            AUDIO_CPP_SAMPLE_RATE_KEY,
+            DEFAULT_AUDIO_CPP_SAMPLE_RATE,
+            minimum=8_000,
         ),
         tts_fallback_after=_parse_int(
             source, TTS_FALLBACK_AFTER_KEY, DEFAULT_TTS_FALLBACK_AFTER, minimum=1
@@ -153,7 +161,9 @@ def _require_ws_scheme(value: str, key: str) -> None:
         raise ConfigError(key, "must be a ws:// or wss:// URL")
 
 
-def _parse_int(source: Mapping[str, str], key: str, default: int, *, minimum: int) -> int:
+def _parse_int(
+    source: Mapping[str, str], key: str, default: int, *, minimum: int
+) -> int:
     raw = source.get(key, "").strip()
     if raw == "":
         return default

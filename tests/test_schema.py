@@ -4,6 +4,7 @@ The hub injects OUTPUT_SCHEMA into the system prompt and validates every
 dispatched unit against it, so emotion/motion enums must equal the frontend
 whitelists (godot/scripts/live2d_avatar.gd) and the assets those lists name.
 """
+
 from __future__ import annotations
 
 import json
@@ -34,9 +35,7 @@ def test_motion_enum_matches_frontend_motion_whitelist() -> None:
 
 
 def test_expression_clips_exist_for_every_emotion_tag() -> None:
-    clips = {
-        p.stem for p in (GODOT / "assets" / "face_expressions").glob("*.json")
-    }
+    clips = {p.stem for p in (GODOT / "assets" / "face_expressions").glob("*.json")}
     assert set(EMOTION_TAGS) == clips
 
 
@@ -77,9 +76,7 @@ def test_reset_motion_covers_every_gesture_curve_target() -> None:
             ):
                 continue
             targets.add((curve["Target"], curve["Id"]))
-    reset = json.loads(
-        (motion_dir / "reset.motion3.json").read_text(encoding="utf-8")
-    )
+    reset = json.loads((motion_dir / "reset.motion3.json").read_text(encoding="utf-8"))
     reset_targets = {(c["Target"], c["Id"]) for c in reset["Curves"]}
     assert targets <= reset_targets
 

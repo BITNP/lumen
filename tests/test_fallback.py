@@ -1,4 +1,5 @@
 """AutoTtsEngine degradation: transparent retry, threshold, cooldown probe."""
+
 from __future__ import annotations
 
 import asyncio

@@ -12,6 +12,7 @@ one full-duplex connection:
   presenter -> hub: capability (first frame), input, result, status_result
   hub -> presenter: capability acknowledgement, output_unit, status_query
 """
+
 from __future__ import annotations
 
 import json
