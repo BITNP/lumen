@@ -23,7 +23,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any, cast
 
-import httpx
+import httpx2
 
 from presenter.tts import SAMPLE_RATE_HZ, TtsError
 
@@ -76,7 +76,7 @@ class _LinearResampler:
 
 
 class AudioCppEngine:
-    """One sentence per stream() call via SSE; shared httpx client underneath."""
+    """One sentence per stream() call via SSE; shared httpx2 client underneath."""
 
     name = "audio_cpp"
 
@@ -95,9 +95,9 @@ class AudioCppEngine:
         self._voice_ref = voice_ref
         self._reference_text = reference_text
         self._sample_rate_hz = sample_rate
-        self._client = httpx.AsyncClient(
+        self._client = httpx2.AsyncClient(
             base_url=base_url,
-            timeout=httpx.Timeout(timeout_seconds, connect=10.0, read=timeout_seconds),
+            timeout=httpx2.Timeout(timeout_seconds, connect=10.0, read=timeout_seconds),
             # audio.cpp is a localhost service: ambient proxy env vars (HTTP_PROXY,
             # ALL_PROXY socks://...) must never intercept or break these calls.
             trust_env=False,
@@ -111,7 +111,7 @@ class AudioCppEngine:
         try:
             response = await self._client.get("/health", timeout=5.0)
             return response.status_code == 200
-        except httpx.HTTPError:
+        except httpx2.HTTPError:
             return False
 
     async def stream(self, text: str) -> AsyncGenerator[bytes, None]:
@@ -133,26 +133,26 @@ class AudioCppEngine:
         )
         produced = 0
         try:
-            async with self._client.stream(
-                "POST",
+            # httpx2 原生 SSE（client.sse）：帧切分/解码交给库，[DONE] 哨兵按
+            # OpenAI 约定是 data 载荷而非 JSON 事件。max_event_size=None 保持
+            # 旧手写实现的无上限语义（大 delta 不应被拒收）。
+            async with self._client.sse(
                 "/v1/audio/speech",
+                method="POST",
                 json=payload,
-                headers={"Accept": "text/event-stream"},
-            ) as response:
+                max_event_size=None,
+            ) as events:
+                response = events.response
                 if response.status_code != 200:
                     await response.aread()
                     raise TtsError(f"audio.cpp HTTP {response.status_code}")
-                async for line in response.aiter_lines():
-                    event = _parse_sse_line(line)
-                    if event is None:
-                        continue
-                    if event == "done":
+                async for event in events:
+                    if event.data.strip() == "[DONE]":
                         break
-                    if not isinstance(event, dict):
-                        continue
-                    kind = event.get("type")
+                    frame = _parse_sse_data(event.data)
+                    kind = frame.get("type")
                     if kind == "speech.audio.delta":
-                        chunk = _decode_delta(event)
+                        chunk = _decode_delta(frame)
                         produced += len(chunk)
                         out = resampler.feed(chunk) if resampler else chunk
                         if out:
@@ -163,7 +163,7 @@ class AudioCppEngine:
                         raise TtsError(f"audio.cpp stream error: {kind}")
         except TtsError:
             raise
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             raise TtsError(f"audio.cpp request failed: {type(exc).__name__}") from exc
         if resampler:
             tail = resampler.flush()
@@ -174,16 +174,7 @@ class AudioCppEngine:
             raise TtsError("audio.cpp produced no audio")
 
 
-_SSE_DONE = "done"
-
-
-def _parse_sse_line(line: str) -> dict[str, Any] | str | None:
-    text = line.strip()
-    if not text.startswith("data:"):
-        return None
-    data = text[len("data:") :].strip()
-    if data == "[DONE]":
-        return _SSE_DONE
+def _parse_sse_data(data: str) -> dict[str, Any]:
     try:
         parsed: object = json.loads(data)
     except (json.JSONDecodeError, UnicodeError) as exc:
