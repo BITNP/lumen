@@ -20,6 +20,14 @@
   字幕播完后保留在气泡上，直到下一条字幕开始揭示才被替换（轮次结束不清空）；
   字幕与该句的 `speech_state` 在第一个音频块开始播放时才切换/开口，整句合成
   等待期（含首块数秒延迟）屏上保留上一句。
+  `godot/.godot/` 是本地导入缓存（gitignore），但属**运行必需**：Godot 以
+  `godot --path` 运行（非编辑器）不做导入，导入产物（背景/气泡/字体/纹理的
+  `.ctex`/`.fontdata`）与 gd_cubism 扩展注册（`extension_list.cfg`）都从它加载；
+  缓存缺失时全部资源加载失败、`GDCubismUserModel` 退化为占位节点（整屏空白），
+  且 supervisor 把 Godot stderr 送 DEVNULL，宿主侧看不到任何报错。清理缓存
+  残留时**不要把 `.godot` 与 `__pycache__`/`.ruff_cache` 等一并删除**；误删后
+  用 `godot --headless --path godot/ --import` 重建即可（资产与 `.import`
+  sidecar 均在 git 内，缓存本身可再生）。
 - **句间停顿**：上一句播完到下一句开口之间至少保持 `PRESENTER_SENTENCE_GAP_SECONDS`
   （默认 1.0，0 = 关闭）的停顿，期间屏上仍是上一句全文字幕。这是**最少间隔**而非
   额外延迟：下一句合成等待本身计入间隔（合成慢于间隔就不再等），每轮首句不等，
