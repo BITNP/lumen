@@ -80,6 +80,9 @@ class PresentationBridge:
             LOGGER.debug("presentation unavailable, dropping %s", command.get("type"))
             return
         raw = json.dumps(command, ensure_ascii=False)
+        if command.get("type") != "subtitle_set" or not command.get("visible_chars"):
+            # 字幕逐 tick 揭示不刷屏，只记每条字幕的开始帧（=该句开播时刻）
+            LOGGER.debug("presentation send: %s", raw[:200])
         for client in list(self._clients):
             try:
                 await client.send(raw)
