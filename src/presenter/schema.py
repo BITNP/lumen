@@ -5,6 +5,7 @@ injected into the system prompt through the waycast capability catalog, so it
 carries the per-sentence unit guidance (ADR-0003) without touching core code.
 The hub validates every dispatched unit against OUTPUT_SCHEMA before delivery.
 """
+
 from __future__ import annotations
 
 from typing import Any, Final
@@ -49,8 +50,12 @@ OUTPUT_SCHEMA: Final[dict[str, Any]] = {
             "type": "string",
             "enum": ["stop"],
             "description": (
-                "stop control unit: clears the expression queue and halts current "
-                "playback immediately; send it as its own unit before new speech"
+                "stop control unit: drops every sentence still queued or being "
+                "synthesized; the sentence she is speaking is NOT cut — it finishes, "
+                "or the new speech takes over seamlessly the moment its audio is "
+                "ready. MANDATORY FIRST UNIT of your list whenever a new input "
+                "supersedes what she is currently saying; without it she always "
+                "finishes the old answer before starting the new one"
             ),
         },
         "ppt": {
@@ -78,7 +83,10 @@ OUTPUT_SCHEMA: Final[dict[str, Any]] = {
             "additionalProperties": False,
             "allOf": [
                 {
-                    "if": {"properties": {"action": {"const": "goto"}}, "required": ["action"]},
+                    "if": {
+                        "properties": {"action": {"const": "goto"}},
+                        "required": ["action"],
+                    },
                     "then": {"required": ["page"]},
                 },
                 {
@@ -102,9 +110,12 @@ CAPABILITY_OUTPUT_DESCRIPTION: Final = (
     "optionally carries speech (one sentence to speak), subtitle (defaults to "
     "speech), emotion and motion tags, and a ppt instruction "
     "(ppt.action open_deck+deck to show a prepared slide deck, goto+page, next, "
-    "prev, or close) executed right before that sentence is spoken. To interrupt "
-    'her current speech, first send a unit {"control": "stop"} then the new '
-    "sentences. Accepting a unit only means "
+    "prev, or close) applied right as that sentence starts being spoken. "
+    "INTERRUPTION: when a new input supersedes her in-progress answer, your unit "
+    'list MUST start with {"control": "stop"} before any new speech — it drops the '
+    "old backlog and the new sentences take over her voice the instant they are "
+    "synthesized (the sentence mid-play is never cut to silence); without the stop "
+    "unit she will always finish the old answer first. Accepting a unit only means "
     "queued: when the whole dispatched list has finished playing, a queue_finished "
     "input frame arrives carrying a summary including the current slide page's "
     "content description and suggested speaker script; use status_presenter to check "
