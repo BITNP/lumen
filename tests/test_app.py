@@ -609,3 +609,51 @@ def test_subtitle_switches_only_when_first_audio_chunk_plays() -> None:
     assert last["visible_chars"] == len("第一句")
     assert final_sets[-1]["text"] == "第二句"
     assert final_sets[-1]["visible_chars"] == len("第二句")
+
+
+def test_reconnect_jitter_within_bounds() -> None:
+    from lumen.app import RECONNECT_JITTER_RATIO, _with_reconnect_jitter
+
+    for seconds in (0.0, 1.0, 30.0):
+        for _ in range(100):
+            value = _with_reconnect_jitter(seconds)
+            assert (
+                seconds * (1 - RECONNECT_JITTER_RATIO)
+                <= value
+                <= seconds * (1 + RECONNECT_JITTER_RATIO)
+            )
+
+
+def test_run_forever_backoff_doubles_until_capped(monkeypatch) -> None:
+    """hub 一直连不上：重试间隔翻倍直到封顶 30 秒（与 loom / aria 同一天平）。"""
+    from lumen import app as app_module
+
+    recorded: list[float] = []
+
+    class _StopLoop(Exception):
+        pass
+
+    def record(seconds: float) -> float:
+        recorded.append(seconds)
+        if len(recorded) == 7:
+            raise _StopLoop
+        return 0.0
+
+    class _FailingClient:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> None:
+            raise ConnectionError("refused")
+
+        async def __aexit__(self, *exc: object) -> bool:
+            return False
+
+    app = _app()
+    monkeypatch.setattr(app_module, "LumenClient", _FailingClient)
+    monkeypatch.setattr(app_module, "_with_reconnect_jitter", record)
+    try:
+        asyncio.run(app.run_forever())
+    except _StopLoop:
+        pass
+    assert recorded == [1.0, 2.0, 4.0, 8.0, 16.0, 30.0, 30.0]

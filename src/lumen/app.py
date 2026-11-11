@@ -14,8 +14,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import random
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from lumen.config import ConfigError, Settings
 from lumen.decks import DeckError, DeckManager
@@ -27,6 +28,19 @@ from lumen.tts import TtsEngine
 from lumen.units import PptCommand, UnitError, parse_unit
 
 LOGGER = logging.getLogger(__name__)
+
+# hub 重连退避，与 loom / aria 同一天平：首次 BASE 秒，每失败一次翻倍，
+# 封顶 MAX；±20% 随机抖动让同时掉线的模块错开重试，成功入连后复位。
+HUB_RECONNECT_BASE_SECONDS: Final = 1.0
+HUB_RECONNECT_MAX_SECONDS: Final = 30.0
+RECONNECT_JITTER_RATIO: Final = 0.2
+
+
+def _with_reconnect_jitter(seconds: float) -> float:
+    """在 seconds 上下加 ±20% 的随机抖动，返回实际等待秒数。"""
+    spread = seconds * RECONNECT_JITTER_RATIO
+    return seconds + random.uniform(-spread, spread)
+
 
 # Page texts ride every queue_finished input (ADR-0006/0007); bound their
 # token cost per invocation regardless of what the deck manifest stores.
@@ -265,7 +279,7 @@ class LumenApp:
     async def run_forever(self) -> None:
         if self._supervisor is not None:
             self._supervisor.start()
-        delay = 1.0
+        delay = HUB_RECONNECT_BASE_SECONDS
         while True:
             try:
                 async with LumenClient(
@@ -276,14 +290,16 @@ class LumenApp:
                     tls_ca_path=self._settings.tls_ca_path,
                 ) as client:
                     self._client = client
-                    delay = 1.0
+                    delay = HUB_RECONNECT_BASE_SECONDS
                     await client.wait_closed()
             except Exception as exc:  # noqa: BLE001 - 重连循环最后防线：任何断线形态都回到等待重连
-                LOGGER.warning("hub connection lost: %s (retry in %.0fs)", exc, delay)
+                LOGGER.warning("hub connection lost: %s", exc)
             finally:
                 self._client = None
-            await asyncio.sleep(delay)
-            delay = min(delay * 2, 30.0)
+            sleep_seconds = _with_reconnect_jitter(delay)
+            LOGGER.debug("重连 hub：%.2fs 后重试", sleep_seconds)
+            await asyncio.sleep(sleep_seconds)
+            delay = min(delay * 2, HUB_RECONNECT_MAX_SECONDS)
 
     async def shutdown(self) -> None:
         await self._playback.shutdown()

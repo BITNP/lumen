@@ -12,7 +12,8 @@
   worker 沿队列顺序串行预合成（引擎在飞 ≤1），播放 worker 只播队头、边合成边播；
   PPT/emotion/motion/字幕/口型统一在**开播**瞬间派发。逐单元回 `result` 帧；应答
   `status_query`；发 `input` 帧（唯一一种 `queue_finished`，ADR-0005）。断线按指数
-  退避重连。控制单元 stop 不掐正在播放的队头，只丢弃未开播任务并布防无缝接管。
+  退避重连（1 秒起翻倍、封顶 30 秒、±20% 抖动，与 loom / aria 一致）。控制单元 stop
+  不掐正在播放的队头，只丢弃未开播任务并布防无缝接管。
 - **呈现进程**（`godot/`，Godot 4.6 + gd_cubism）：纯呈现、纯展示面（无任何用户
   可操作元素）。经本机 presentation bridge（`127.0.0.1:LUMEN_BRIDGE_PORT`
   上的 WebSocket）接收字幕揭示、表情/动作、PPT 指令，上行只有连接握手。
